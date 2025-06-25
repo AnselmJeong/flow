@@ -9,7 +9,7 @@ import {
   useForceRender,
   useTranslation,
 } from '@flow/reader/hooks'
-import { dbx, mapToToken, OAUTH_SUCCESS_MESSAGE } from '@flow/reader/sync'
+import { dbx, mapToToken, OAUTH_SUCCESS_MESSAGE, pack } from '@flow/reader/sync'
 
 import { Button } from '../Button'
 import { Select } from '../Form'
@@ -48,6 +48,22 @@ export const Settings: React.FC = () => {
           </Select>
         </Item>
         <Synchronization />
+        <Item title="데이터 관리">
+          <div className="space-y-3">
+            <div>
+              <Button
+                onClick={pack}
+                className="mb-2"
+              >
+                전체 데이터 내보내기
+              </Button>
+              <p className="text-sm text-gray-600">
+                모든 책과 채팅 기록, 주석을 포함한 전체 데이터를 ZIP 파일로 다운로드합니다. 
+                백업이나 다른 기기로 데이터를 이전할 때 사용하세요.
+              </p>
+            </div>
+          </div>
+        </Item>
         <Item title={t('cache')}>
           <Button
             variant="secondary"

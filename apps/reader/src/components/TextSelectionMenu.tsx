@@ -228,7 +228,6 @@ const TextSelectionMenuRenderer: React.FC<TextSelectionMenuRendererProps> = ({
               size={ICON_SIZE}
               onClick={() => {
                 hide()
-                setAction('ai-chat')
                 // Store selected text and CFI for AI chat
                 if (typeof window !== 'undefined') {
                   window.dispatchEvent(new CustomEvent('ai-chat-request', {

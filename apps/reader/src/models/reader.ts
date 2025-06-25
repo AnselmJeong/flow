@@ -237,7 +237,9 @@ export class BookTab extends BaseTab {
   }
 
   showPrevLocation() {
-    this.locationToReturn = this.location
+    if (this.location) {
+      this.locationToReturn = this.location
+    }
   }
 
   hidePrevLocation() {

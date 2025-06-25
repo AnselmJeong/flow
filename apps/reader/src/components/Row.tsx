@@ -82,7 +82,7 @@ export const Row: React.FC<RowProps> = ({
           t ? 'text-on-surface-variant' : 'text-outline/60',
         )}
         style={{
-          fontSize: scale(12, 14),
+          fontSize: scale(14, 16),
           marginLeft: scale(0, 2),
         }}
       >

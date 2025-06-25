@@ -42,7 +42,7 @@ export class AIService {
       session = {
         id: uuidv4(),
         bookId,
-        title: this.generateSessionTitle(content),
+        title: this.generateSessionTitle(content, context),
         messages: [userMessage],
         createdAt: timestamp,
         updatedAt: timestamp,
@@ -81,6 +81,14 @@ export class AIService {
       return { message: assistantMessage, sessionId: session.id }
     } catch (error) {
       console.error('AI Service Error:', error)
+      console.error('Error details:', {
+        name: error?.name,
+        message: error?.message,
+        stack: error?.stack,
+        bookId,
+        sessionId,
+        hasContext: !!context
+      })
       
       // Create error message
       const errorMessage: ChatMessage = {
@@ -91,7 +99,12 @@ export class AIService {
       }
 
       session.messages.push(errorMessage)
-      await this.saveSession(session)
+      
+      try {
+        await this.saveSession(session)
+      } catch (saveError) {
+        console.error('Error saving session after AI error:', saveError)
+      }
       
       return { message: errorMessage, sessionId: session.id }
     }
@@ -112,17 +125,21 @@ export class AIService {
 
   async deleteSession(sessionId: string): Promise<void> {
     if (!db) return
+    
+    // Get session first to get bookId
+    const session = await db.chatSessions.get(sessionId)
+    if (!session) return
+    
+    const bookId = session.bookId
+    
+    // Delete session from chatSessions table
     await db.chatSessions.delete(sessionId)
     
     // Remove session reference from book
-    const sessions = await db.chatSessions.where('id').equals(sessionId).toArray()
-    if (sessions.length > 0) {
-      const bookId = sessions[0].bookId
-      const book = await db.books.get(bookId)
-      if (book) {
-        book.chatSessions = book.chatSessions.filter(s => s.id !== sessionId)
-        await db.books.put(book)
-      }
+    const book = await db.books.get(bookId)
+    if (book && book.chatSessions) {
+      book.chatSessions = book.chatSessions.filter(s => s.id !== sessionId)
+      await db.books.put(book)
     }
   }
 
@@ -136,17 +153,36 @@ export class AIService {
     
     const book = await db.books.get(bookId)
     if (book) {
+      // Initialize chatSessions array if it doesn't exist
+      if (!book.chatSessions) {
+        book.chatSessions = []
+      }
+      
       // Check if session already exists in book
       const existingSessionIndex = book.chatSessions.findIndex(s => s.id === sessionId)
       
       if (existingSessionIndex === -1) {
-        // Add new session reference
+        // Add new session reference (only store session metadata, not full object)
         const session = await this.getSession(sessionId)
-        book.chatSessions.push(session)
+        book.chatSessions.push({
+          id: session.id,
+          bookId: session.bookId,
+          title: session.title,
+          messages: [], // Don't store messages in book record to avoid data duplication
+          createdAt: session.createdAt,
+          updatedAt: session.updatedAt,
+        })
       } else {
         // Update existing session reference
         const session = await this.getSession(sessionId)
-        book.chatSessions[existingSessionIndex] = session
+        book.chatSessions[existingSessionIndex] = {
+          id: session.id,
+          bookId: session.bookId,
+          title: session.title,
+          messages: [], // Don't store messages in book record to avoid data duplication
+          createdAt: session.createdAt,
+          updatedAt: session.updatedAt,
+        }
       }
       
       book.updatedAt = Date.now()
@@ -154,7 +190,13 @@ export class AIService {
     }
   }
 
-  private generateSessionTitle(content: string): string {
+  private generateSessionTitle(content: string, context?: { text: string; cfi: string }): string {
+    if (context?.text) {
+      // Use context text for title (first 30 characters)
+      const contextTitle = context.text.slice(0, 30).trim()
+      return contextTitle + (context.text.length > 30 ? '...' : '') + ' 근처 - AI 채팅'
+    }
+    
     // Generate a short title from the first message
     const words = content.split(' ').slice(0, 5)
     let title = words.join(' ')

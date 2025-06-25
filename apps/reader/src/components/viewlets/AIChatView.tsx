@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { MdSend, MdAdd, MdDelete, MdSettings } from 'react-icons/md'
+import { MdSend, MdAdd, MdDelete, MdSettings, MdClose } from 'react-icons/md'
 import ReactMarkdown from 'react-markdown'
 
 import { getAIService, initializeAI } from '../../ai'
@@ -31,6 +31,7 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
   const [isLoading, setIsLoading] = useState(false)
   const [apiKey, setApiKey] = useState('')
   const [showSettings, setShowSettings] = useState(false)
+  const [showContext, setShowContext] = useState(!!selectedText)
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -61,12 +62,12 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [currentSession?.messages])
 
-  // Set initial input if text is selected (only once)
+  // Show context when selected text changes
   useEffect(() => {
-    if (selectedText && !input) {
-      setInput(`Please explain this text: "${selectedText}"`)
+    if (selectedText) {
+      setShowContext(true)
     }
-  }, [selectedText]) // Remove input dependency to prevent loop
+  }, [selectedText])
 
   const loadSessions = useCallback(async () => {
     if (!book?.id) return
@@ -87,6 +88,18 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
       }
     }
   }, [apiKey, book?.id, loadSessions])
+
+  const handleContextClick = useCallback(() => {
+    if (selectedCfi && tab?.display) {
+      try {
+        // Navigate to the selected location using CFI
+        tab.display(selectedCfi, false) // Set returnable to false to avoid locationToReturn issues
+        // Keep the AI chat view open after navigation
+      } catch (error) {
+        console.error('Error navigating to context location:', error)
+      }
+    }
+  }, [selectedCfi, tab])
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading || !book?.id) return
@@ -149,7 +162,7 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
   }
 
   const formatTimestamp = (timestamp: number) => {
-    return new Intl.DateTimeFormat('en-US', {
+    return new Intl.DateTimeFormat('ko-KR', {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
@@ -162,7 +175,7 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
     return (
       <div className={`flex h-full items-center justify-center p-4 ${className || ''}`}>
         <div className="text-center text-gray-500">
-          <p>Please open a book to use AI Chat</p>
+          <p>책을 열어 AI 채팅을 사용해주세요</p>
         </div>
       </div>
     )
@@ -172,7 +185,7 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
     return (
       <div className={`flex h-full flex-col p-4 ${className || ''}`}>
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold">AI Chat Settings</h3>
+          <h3 className="text-lg font-semibold">AI 채팅 설정</h3>
           {apiKey && (
             <IconButton
               Icon={MdSettings}
@@ -190,7 +203,7 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            placeholder="Enter your Gemini API key"
+            placeholder="Gemini API 키를 입력하세요"
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 saveApiKey()
@@ -198,7 +211,7 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
             }}
           />
           <p className="mt-1 text-xs text-gray-500">
-            Get your API key from{' '}
+            API 키는{' '}
             <a
               href="https://aistudio.google.com/app/apikey"
               target="_blank"
@@ -207,34 +220,37 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
             >
               Google AI Studio
             </a>
+            에서 받을 수 있습니다
           </p>
         </div>
         
         <Button onClick={saveApiKey} disabled={!apiKey.trim()}>
-          Save API Key
+          API 키 저장
         </Button>
       </div>
     )
   }
 
   return (
-    <div className={`flex h-full flex-col ${className || ''}`}>
+    <div className={`flex h-full flex-col bg-white ${className || ''}`}>
       {/* Header */}
-      <div className="border-b p-4">
+      <div className="border-b p-4 bg-gray-50">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">AI Chat</h3>
+          <h3 className="text-lg font-semibold text-gray-800">AI에게 질문하세요</h3>
           <div className="flex gap-2">
             <IconButton
               Icon={MdSettings}
               onClick={() => setShowSettings(true)}
               size={20}
-              title="Settings"
+              title="설정"
+              className="text-gray-600 hover:text-gray-800"
             />
             <IconButton
               Icon={MdAdd}
               onClick={startNewSession}
               size={20}
-              title="New Chat"
+              title="새 채팅"
+              className="text-gray-600 hover:text-gray-800"
             />
           </div>
         </div>
@@ -242,81 +258,176 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sessions Sidebar */}
-        <div className="w-64 border-r p-2 flex-shrink-0">
-          <div className="mb-2 text-sm font-medium">Chat History</div>
-          <div className="space-y-1">
-            {sessions.map((session) => (
-              <div
-                key={session.id}
-                className={`cursor-pointer rounded p-2 text-xs hover:bg-gray-100 ${
-                  currentSession?.id === session.id ? 'bg-blue-100' : ''
-                }`}
-                onClick={() => selectSession(session)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="truncate font-medium">{session.title}</div>
-                  <IconButton
-                    Icon={MdDelete}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      deleteSession(session.id)
-                    }}
-                    size={14}
-                    className="opacity-0 group-hover:opacity-100"
-                  />
+        <div className="w-64 border-r bg-gray-50 flex-shrink-0 overflow-hidden">
+          <div className="p-4">
+            <div className="mb-3 text-sm font-medium text-gray-700">대화 기록</div>
+            <div className="space-y-2 max-h-full overflow-y-auto">
+              {sessions.map((session) => {
+                // Get context from first user message
+                const firstUserMessage = session.messages.find(m => m.role === 'user')
+                const hasContext = firstUserMessage?.context?.text
+                
+                return (
+                  <div
+                    key={session.id}
+                    className={`group cursor-pointer rounded-lg p-3 transition-colors hover:bg-white ${
+                      currentSession?.id === session.id ? 'bg-white shadow-sm border border-blue-200' : ''
+                    }`}
+                    onClick={() => selectSession(session)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="min-w-0 flex-1">
+                        {hasContext ? (
+                          <>
+                            <div className="truncate font-medium text-sm text-gray-800">
+                              "{firstUserMessage.context.text.slice(0, 40)}{firstUserMessage.context.text.length > 40 ? '...' : ''}"
+                            </div>
+                            <div className="text-xs text-blue-600 mt-1">
+                              근처 - AI 채팅
+                            </div>
+                          </>
+                        ) : (
+                          <div className="truncate font-medium text-sm text-gray-800">{session.title}</div>
+                        )}
+                        <div className="text-gray-500 text-xs mt-1">
+                          {formatTimestamp(session.updatedAt)}
+                        </div>
+                      </div>
+                      <IconButton
+                        Icon={MdDelete}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          deleteSession(session.id)
+                        }}
+                        size={14}
+                        className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500"
+                      />
+                    </div>
+                    {hasContext && (
+                      <div className="mt-2 text-xs text-gray-500 bg-gray-50 p-2 rounded">
+                        질문 {session.messages.filter(m => m.role === 'user').length}개 · 
+                        답변 {session.messages.filter(m => m.role === 'assistant').length}개
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              {sessions.length === 0 && (
+                <div className="text-center text-gray-500 text-sm py-8">
+                  아직 대화가 없습니다
                 </div>
-                <div className="text-gray-500">
-                  {formatTimestamp(session.updatedAt)}
-                </div>
-              </div>
-            ))}
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Chat Area */}
+        {/* Main Chat Area */}
         <div className="flex flex-1 flex-col min-w-0">
+          {/* Context Display */}
+          {((selectedText && showContext) || (currentSession && currentSession.messages.find(m => m.role === 'user' && m.context))) && (
+            <div className="border-b bg-blue-50 p-4 flex-shrink-0">
+              <div className="mb-2 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
+                  <span className="text-sm font-medium text-gray-700">
+                    {selectedText ? '선택된 원문 위치를 이용' : '대화 컨텍스트'}
+                  </span>
+                </div>
+                <IconButton
+                  Icon={MdClose}
+                  onClick={() => setShowContext(false)}
+                  size={16}
+                  className="text-gray-500 hover:text-gray-700"
+                />
+              </div>
+              <div 
+                className="rounded-lg bg-white p-4 shadow-sm border cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => {
+                  if (selectedText && selectedCfi) {
+                    handleContextClick()
+                  } else if (currentSession) {
+                    const firstUserMessage = currentSession.messages.find(m => m.role === 'user' && m.context)
+                    if (firstUserMessage?.context?.cfi && tab?.display) {
+                      try {
+                        tab.display(firstUserMessage.context.cfi, false)
+                      } catch (error) {
+                        console.error('Error navigating to session context location:', error)
+                      }
+                    }
+                  }
+                }}
+                title="클릭하면 해당 페이지로 이동합니다"
+              >
+                <div className="text-sm leading-relaxed text-gray-800">
+                  "{selectedText || currentSession?.messages.find(m => m.role === 'user' && m.context)?.context?.text}"
+                </div>
+                <div className="mt-2 text-xs text-gray-500">
+                  위치: "{(selectedText || currentSession?.messages.find(m => m.role === 'user' && m.context)?.context?.text)?.slice(0, 20)}..." 근처
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-auto p-6">
             {currentSession ? (
-              <div className="w-full">
+              <div className="max-w-4xl mx-auto">
                 {currentSession.messages.map((message) => (
                   <ChatMessageComponent key={message.id} message={message} />
                 ))}
               </div>
             ) : (
-              <div className="flex h-full items-center justify-center text-gray-500">
-                Select a chat or start a new conversation
+              <div className="flex h-full items-center justify-center">
+                <div className="text-center">
+                  <div className="mb-4 text-6xl">🤖</div>
+                  <h4 className="text-lg font-medium text-gray-800 mb-2">
+                    {selectedText ? '위에 표시된 텍스트에 대해' : 'AI에게 질문하세요'}
+                  </h4>
+                  <p className="text-gray-600 mb-4">
+                    무엇이든 질문해보세요!
+                  </p>
+                  <div className="text-sm text-gray-500">
+                    {selectedText 
+                      ? '선택된 텍스트를 클릭하면 해당 페이지로 돌아갑니다'
+                      : 'AI에게 질문을 하시면 도움을 드릴 수 있습니다'
+                    }
+                  </div>
+                </div>
               </div>
             )}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
-          <div className="border-t p-4">
-            <div className="flex gap-2 items-end">
-              <TextField
-                ref={inputRef}
-                as="textarea"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask a question about the book..."
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    sendMessage()
-                  }
-                }}
-                disabled={isLoading}
-                className="flex-1 min-h-[60px] max-h-[120px] resize-y"
-                rows={2}
-              />
-              <IconButton
-                Icon={MdSend}
-                onClick={sendMessage}
-                disabled={!input.trim() || isLoading}
-                size={20}
-                className="mb-1"
-              />
+          {/* Input Area */}
+          <div className="border-t bg-white p-6 flex-shrink-0">
+            <div className="max-w-4xl mx-auto">
+              <div className="flex gap-3 items-end">
+                <div className="flex-1">
+                  <TextField
+                    ref={inputRef}
+                    as="textarea"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="AI에게 질문하세요..."
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        sendMessage()
+                      }
+                    }}
+                    disabled={isLoading}
+                    className="min-h-[48px] max-h-[120px] resize-none rounded-lg border border-gray-300 p-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    rows={1}
+                  />
+                </div>
+                <Button
+                  onClick={sendMessage}
+                  disabled={!input.trim() || isLoading}
+                  className="h-12 w-12 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 flex items-center justify-center"
+                >
+                  <MdSend size={20} className="text-white" />
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -329,40 +440,43 @@ const ChatMessageComponent: React.FC<{ message: ChatMessage }> = ({ message }) =
   const isUser = message.role === 'user'
   
   return (
-    <div className="w-full mb-4">
-      <div
-        className={`w-full rounded-lg p-4 ${
-          isUser 
-            ? 'bg-blue-500 text-white' 
-            : 'bg-gray-100 text-gray-900'
-        }`}
-      >
-        {isUser ? (
-          <div className="whitespace-pre-wrap text-sm">{message.content}</div>
-        ) : (
-          <div className="prose prose-sm max-w-none text-gray-900">
-            <ReactMarkdown
-              components={{
-                // Custom styling for markdown elements
-                h1: ({ children }) => <h1 className="text-lg font-bold mb-2">{children}</h1>,
-                h2: ({ children }) => <h2 className="text-base font-bold mb-2">{children}</h2>,
-                h3: ({ children }) => <h3 className="text-sm font-bold mb-1">{children}</h3>,
-                p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                ul: ({ children }) => <ul className="list-disc pl-4 mb-2">{children}</ul>,
-                ol: ({ children }) => <ol className="list-decimal pl-4 mb-2">{children}</ol>,
-                li: ({ children }) => <li className="mb-1">{children}</li>,
-                code: ({ children }) => <code className="bg-gray-200 px-1 py-0.5 rounded text-xs">{children}</code>,
-                pre: ({ children }) => <pre className="bg-gray-200 p-2 rounded text-xs overflow-x-auto">{children}</pre>,
-                strong: ({ children }) => <strong className="font-bold">{children}</strong>,
-                em: ({ children }) => <em className="italic">{children}</em>,
-              }}
-            >
-              {message.content}
-            </ReactMarkdown>
+    <div className="mb-6">
+      <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+        <div className={`max-w-3xl ${isUser ? 'order-2' : 'order-1'}`}>
+          <div
+            className={`rounded-2xl p-4 ${
+              isUser 
+                ? 'bg-blue-500 text-white' 
+                : 'bg-gray-100 text-gray-900'
+            }`}
+          >
+            {isUser ? (
+              <div className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</div>
+            ) : (
+              <div className="prose prose-sm max-w-none text-gray-900">
+                <ReactMarkdown
+                  components={{
+                    h1: ({ children }) => <h1 className="text-lg font-bold mb-3 text-gray-800">{children}</h1>,
+                    h2: ({ children }) => <h2 className="text-base font-bold mb-2 text-gray-800">{children}</h2>,
+                    h3: ({ children }) => <h3 className="text-sm font-bold mb-2 text-gray-800">{children}</h3>,
+                    p: ({ children }) => <p className="mb-3 last:mb-0 leading-relaxed text-gray-700">{children}</p>,
+                    ul: ({ children }) => <ul className="list-disc pl-5 mb-3">{children}</ul>,
+                    ol: ({ children }) => <ol className="list-decimal pl-5 mb-3">{children}</ol>,
+                    li: ({ children }) => <li className="mb-1 text-gray-700">{children}</li>,
+                    code: ({ children }) => <code className="bg-gray-200 px-2 py-1 rounded text-xs font-mono">{children}</code>,
+                    pre: ({ children }) => <pre className="bg-gray-800 text-white p-4 rounded-lg text-sm overflow-x-auto">{children}</pre>,
+                    strong: ({ children }) => <strong className="font-semibold text-gray-800">{children}</strong>,
+                    em: ({ children }) => <em className="italic text-gray-700">{children}</em>,
+                  }}
+                >
+                  {message.content}
+                </ReactMarkdown>
+              </div>
+            )}
           </div>
-        )}
-        <div className={`mt-2 text-xs ${isUser ? 'text-blue-100' : 'text-gray-500'}`}>
-          {new Date(message.timestamp).toLocaleTimeString()}
+          <div className={`mt-2 text-xs ${isUser ? 'text-right text-gray-500' : 'text-gray-500'}`}>
+            {new Date(message.timestamp).toLocaleTimeString('ko-KR')}
+          </div>
         </div>
       </div>
     </div>

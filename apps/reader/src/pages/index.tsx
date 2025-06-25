@@ -13,7 +13,7 @@ import {
 import { useSet } from 'react-use'
 import { usePrevious } from 'react-use'
 
-import { ReaderGridView, Button, TextField, DropZone } from '../components'
+import { ReaderGridView, Button, TextField, DropZone, ToastContainer, useToast } from '../components'
 import { BookRecord, CoverRecord, db } from '../db'
 import { addFile, fetchBook, handleFiles } from '../file'
 import {
@@ -26,7 +26,7 @@ import {
 } from '../hooks'
 import { reader, useReaderSnapshot } from '../models'
 import { lock } from '../styles'
-import { dbx, pack, uploadData } from '../sync'
+import { dbx, uploadData } from '../sync'
 
 const placeholder = `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect fill="gray" fill-opacity="0" width="1" height="1"/></svg>`
 
@@ -109,6 +109,7 @@ const Library: React.FC = () => {
 
   const [loading, setLoading] = useState<string | undefined>()
   const [readyToSync, setReadyToSync] = useState(false)
+  const { toasts, removeToast, showSuccess, showError, showWarning } = useToast()
 
   const { groups } = useReaderSnapshot()
 
@@ -196,31 +197,46 @@ const Library: React.FC = () => {
       }}
     >
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-4">{t('my_library')}</h1>
-        
-        {/* Search Box */}
-        <div className="mb-4">
-          <TextField
-            placeholder={t('search_books')}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            hideLabel
-            actions={[
-              {
-                title: 'Search',
-                Icon: MdSearch,
-                onClick: () => {},
-              },
-            ]}
-          />
+      <div className="mb-8">
+        {/* Title Row */}
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">{t('my_library')}</h1>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="space-x-2">
+        {/* Search and Action Bar */}
+        <div className="flex items-center gap-4 mb-6">
+          {/* Enhanced Search Box */}
+          <div className="flex-1 max-w-md relative">
+            <div className="relative">
+              <MdSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="책 제목이나 저자를 검색하세요..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm transition-shadow duration-200"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-3">
             {books.length ? (
-              <Button variant="secondary" onClick={toggleSelect}>
+              <Button 
+                variant="secondary" 
+                onClick={toggleSelect}
+                className="px-4 py-2 text-sm"
+              >
                 {t(select ? 'cancel' : 'select')}
               </Button>
             ) : (
@@ -232,107 +248,205 @@ const Library: React.FC = () => {
                     'https://epubtest.org/books/Fundamental-Accessibility-Tests-Basic-Functionality-v1.0.0.epub',
                   )
                 }}
+                className="px-4 py-2 text-sm"
               >
                 {t('download_sample_book')}
               </Button>
             )}
-            {select &&
-              (allSelected ? (
-                <Button variant="secondary" onClick={reset}>
-                  {t('deselect_all')}
-                </Button>
-              ) : (
-                <Button
-                  variant="secondary"
-                  onClick={() => books.forEach((b) => add(b.id))}
-                >
-                  {t('select_all')}
-                </Button>
-              ))}
-          </div>
-
-          <div className="space-x-2">
-            {select ? (
+            
+            {select && (
               <>
-                <Button
-                  onClick={async () => {
-                    toggleSelect()
-
-                    for (const book of selectedBooks) {
-                      const remoteFile = remoteFiles?.find(
-                        (f) => f.name === book.name,
-                      )
-                      if (remoteFile) continue
-
-                      const file = await db?.files.get(book.id)
-                      if (!file) continue
-
-                      setLoading(book.id)
-                      await dbx.filesUpload({
-                        path: `/files/${book.name}`,
-                        contents: file.file,
-                      })
-                      setLoading(undefined)
-
-                      mutateRemoteFiles()
-                    }
-                  }}
-                >
-                  {t('upload')}
-                </Button>
-                <Button
-                  onClick={async () => {
-                    toggleSelect()
-                    const bookIds = [...selectedBookIds]
-
-                    db?.books.bulkDelete(bookIds)
-                    db?.covers.bulkDelete(bookIds)
-                    db?.files.bulkDelete(bookIds)
-
-                    // folder data is not updated after `filesDeleteBatch`
-                    mutateRemoteFiles(
-                      async (data) => {
-                        await dbx.filesDeleteBatch({
-                          entries: selectedBooks.map((b) => ({
-                            path: `/files/${b.name}`,
-                          })),
-                        })
-                        return data?.filter(
-                          (f) => !selectedBooks.find((b) => b.name === f.name),
-                        )
-                      },
-                      { revalidate: false },
-                    )
-                  }}
-                >
-                  {t('delete')}
-                </Button>
+                {allSelected ? (
+                  <Button 
+                    variant="secondary" 
+                    onClick={reset}
+                    className="px-4 py-2 text-sm"
+                  >
+                    {t('deselect_all')}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="secondary"
+                    onClick={() => books.forEach((b) => add(b.id))}
+                    className="px-4 py-2 text-sm"
+                  >
+                    {t('select_all')}
+                  </Button>
+                )}
               </>
-            ) : (
-              <>
-                <Button
-                  variant="secondary"
-                  disabled={!books.length}
-                  onClick={pack}
-                >
-                  {t('export')}
-                </Button>
-                <Button className="relative">
-                  <input
-                    type="file"
-                    accept="application/epub+zip,application/epub,application/zip"
-                    className="absolute inset-0 cursor-pointer opacity-0"
-                    onChange={(e) => {
-                      const files = e.target.files
-                      if (files) handleFiles(files)
-                    }}
-                  />
-                  {t('import')}
-                </Button>
-              </>
+            )}
+
+            {/* Import Button */}
+            {!select && (
+              <Button className="relative bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm rounded-lg font-medium shadow-sm hover:shadow-md transition-all duration-200">
+                <input
+                  type="file"
+                  accept="application/epub+zip,application/epub,application/zip"
+                  className="absolute inset-0 cursor-pointer opacity-0"
+                  onChange={(e) => {
+                    const files = e.target.files
+                    if (files) handleFiles(files)
+                  }}
+                />
+                <span className="flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Import Books
+                </span>
+              </Button>
             )}
           </div>
         </div>
+
+        {/* Selection Action Buttons */}
+        {select && (
+          <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-violet-50 to-purple-50 rounded-xl border border-violet-200/60 shadow-sm">
+            <span className="text-sm text-violet-700 font-medium">
+              {selectedBookIds.size}개 선택됨
+            </span>
+            <div className="flex gap-3 ml-auto">
+              <Button
+                onClick={async () => {
+                  toggleSelect()
+
+                  // 재시도 함수
+                  const uploadWithRetry = async (book: BookRecord, file: any, maxRetries = 3) => {
+                    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                      try {
+                        await dbx.filesUpload({
+                          path: `/files/${book.name}`,
+                          contents: file.file,
+                        })
+                        return true
+                      } catch (error: any) {
+                        console.error(`Upload attempt ${attempt} failed for ${book.name}:`, error)
+                        
+                        // 429 Rate Limit 에러인 경우
+                        if (error.status === 429) {
+                          const retryAfter = error.headers?.['retry-after'] || (attempt * 2)
+                          console.log(`Rate limit reached. Waiting ${retryAfter} seconds before retry...`)
+                          
+                          if (attempt < maxRetries) {
+                            await new Promise(resolve => setTimeout(resolve, retryAfter * 1000))
+                            continue
+                          }
+                        }
+                        
+                        // 마지막 시도였거나 다른 에러인 경우
+                        if (attempt === maxRetries) {
+                          throw error
+                        }
+                        
+                        // 일반적인 재시도 대기 (지수 백오프)
+                        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000))
+                      }
+                    }
+                    return false
+                  }
+
+                  let successCount = 0
+                  let failedBooks: string[] = []
+                  let totalBooks = selectedBooks.filter(book => {
+                    const remoteFile = remoteFiles?.find(f => f.name === book.name)
+                    return !remoteFile
+                  }).length
+
+                  if (totalBooks === 0) {
+                    showInfo('업로드 불필요', '선택된 모든 책이 이미 클라우드에 동기화되어 있습니다.')
+                    return
+                  }
+
+                  showInfo('업로드 시작', `${totalBooks}개 파일 업로드를 시작합니다...`)
+
+                  for (const book of selectedBooks) {
+                    const remoteFile = remoteFiles?.find(
+                      (f) => f.name === book.name,
+                    )
+                    if (remoteFile) continue
+
+                    const file = await db?.files.get(book.id)
+                    if (!file) continue
+
+                    setLoading(book.id)
+                    try {
+                      await uploadWithRetry(book, file)
+                      successCount++
+                    } catch (error: any) {
+                      console.error(`Failed to upload ${book.name} after all retries:`, error)
+                      failedBooks.push(book.name)
+                      
+                                             // 사용자에게 알림
+                       if (error.status === 429) {
+                         showWarning('업로드 제한', `${book.name} 파일의 업로드가 제한되었습니다. 잠시 후 다시 시도해주세요.`)
+                       } else {
+                         showError('업로드 실패', `${book.name}: ${error.message || '알 수 없는 오류'}`)
+                       }
+                    }
+                    setLoading(undefined)
+                  }
+
+                  mutateRemoteFiles()
+                  
+                  // 결과 요약 알림
+                  if (successCount > 0 || failedBooks.length > 0) {
+                    if (failedBooks.length === 0) {
+                      showSuccess('업로드 완료', `${successCount}개 파일이 성공적으로 업로드되었습니다.`)
+                    } else if (successCount === 0) {
+                      showError('업로드 실패', `${failedBooks.length}개 파일의 업로드가 모두 실패했습니다.`)
+                    } else {
+                      showWarning('업로드 부분 완료', `성공: ${successCount}개, 실패: ${failedBooks.length}개`)
+                    }
+                  }
+                }}
+                className="px-4 py-2 text-sm bg-emerald-100 hover:bg-emerald-200 text-emerald-700 hover:text-emerald-800 border border-emerald-200 rounded-lg font-medium transition-colors duration-200"
+                title="선택된 책들을 Dropbox 클라우드에 업로드합니다"
+              >
+                <span className="flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                  </svg>
+                  클라우드 업로드
+                </span>
+              </Button>
+              <Button
+                onClick={async () => {
+                  toggleSelect()
+                  const bookIds = [...selectedBookIds]
+
+                  db?.books.bulkDelete(bookIds)
+                  db?.covers.bulkDelete(bookIds)
+                  db?.files.bulkDelete(bookIds)
+
+                  // folder data is not updated after `filesDeleteBatch`
+                  mutateRemoteFiles(
+                    async (data) => {
+                      await dbx.filesDeleteBatch({
+                        entries: selectedBooks.map((b) => ({
+                          path: `/files/${b.name}`,
+                        })),
+                      })
+                      return data?.filter(
+                        (f) => !selectedBooks.find((b) => b.name === f.name),
+                      )
+                    },
+                    { revalidate: false },
+                  )
+                }}
+                className="px-4 py-2 text-sm bg-rose-100 hover:bg-rose-200 text-rose-700 hover:text-rose-800 border border-rose-200 rounded-lg font-medium transition-colors duration-200"
+              >
+                <span className="flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  삭제
+                </span>
+              </Button>
+            </div>
+          </div>
+        )}
+
+
       </div>
 
       <div className="scroll h-full">
@@ -378,31 +492,107 @@ const Library: React.FC = () => {
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">
-              {searchQuery ? `Search Results (${filteredBooks.length})` : t('all_books')}
+              {searchQuery ? `검색 결과 (${filteredBooks.length})` : t('all_books')}
             </h2>
           </div>
-          <ul
-            className="grid"
-            style={{
-              gridTemplateColumns: `repeat(auto-fill, minmax(calc(80px + 3vw), 1fr))`,
-              columnGap: lock(16, 32),
-              rowGap: lock(32, 48),
-            }}
-          >
-            {filteredBooks.map((book) => (
-            <Book
-              key={book.id}
-              book={book}
-              covers={covers}
-              select={select}
-              selected={has(book.id)}
-              loading={loading === book.id}
-              toggle={toggle}
-            />
-          ))}
-          </ul>
+          
+          {filteredBooks.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              {searchQuery ? (
+                // No search results
+                <>
+                  <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                    <MdSearch className="w-12 h-12 text-gray-400" />
+                  </div>
+                  <h3 className="text-xl font-medium text-gray-900 mb-2">검색 결과가 없습니다</h3>
+                  <p className="text-gray-500 mb-4">
+                    '{searchQuery}'에 대한 검색 결과를 찾을 수 없습니다.
+                  </p>
+                  <Button
+                    variant="secondary"
+                    onClick={() => setSearchQuery('')}
+                    className="px-4 py-2"
+                  >
+                    모든 책 보기
+                  </Button>
+                </>
+              ) : (
+                // No books at all
+                <>
+                  <div className="w-32 h-32 rounded-full bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center mb-6">
+                    <svg className="w-16 h-16 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-3">첫 번째 책을 추가해보세요!</h3>
+                  <p className="text-gray-600 mb-8 max-w-md">
+                    EPUB 파일을 업로드하여 디지털 도서관을 시작해보세요. 
+                    파일을 드래그 앤 드롭하거나 버튼을 클릭하여 추가할 수 있습니다.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-4 items-center">
+                    <Button className="relative bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-xl font-medium shadow-lg hover:shadow-xl transition-all duration-200 text-lg">
+                      <input
+                        type="file"
+                        accept="application/epub+zip,application/epub,application/zip"
+                        className="absolute inset-0 cursor-pointer opacity-0"
+                        onChange={(e) => {
+                          const files = e.target.files
+                          if (files) handleFiles(files)
+                        }}
+                      />
+                                             <span className="flex items-center gap-3">
+                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                         </svg>
+                         Import Books
+                       </span>
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      disabled={!books}
+                      onClick={() => {
+                        fetchBook(
+                          'https://epubtest.org/books/Fundamental-Accessibility-Tests-Basic-Functionality-v1.0.0.epub',
+                        )
+                      }}
+                      className="px-6 py-4 text-base rounded-xl"
+                    >
+                      샘플 책 다운로드
+                    </Button>
+                  </div>
+                  <div className="mt-8 p-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                    <p className="text-sm text-gray-500">
+                      💡 <strong>팁:</strong> EPUB 파일을 이 영역에 직접 드래그해서 놓으시면 자동으로 추가됩니다.
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <ul
+              className="grid"
+              style={{
+                gridTemplateColumns: `repeat(auto-fill, minmax(calc(80px + 3vw), 1fr))`,
+                columnGap: lock(16, 32),
+                rowGap: lock(32, 48),
+              }}
+            >
+              {filteredBooks.map((book) => (
+              <Book
+                key={book.id}
+                book={book}
+                covers={covers}
+                select={select}
+                selected={has(book.id)}
+                loading={loading === book.id}
+                toggle={toggle}
+              />
+            ))}
+            </ul>
+          )}
         </div>
       </div>
+      <ToastContainer toasts={toasts} onClose={removeToast} />
     </DropZone>
   )
 }
