@@ -8,8 +8,7 @@ import {
   MdCheckBox,
   MdCheckBoxOutlineBlank,
   MdCheckCircle,
-  MdOutlineFileDownload,
-  MdOutlineShare,
+  MdSearch,
 } from 'react-icons/md'
 import { useSet } from 'react-use'
 import { usePrevious } from 'react-use'
@@ -28,7 +27,6 @@ import {
 import { reader, useReaderSnapshot } from '../models'
 import { lock } from '../styles'
 import { dbx, pack, uploadData } from '../sync'
-import { copy } from '../utils'
 
 const placeholder = `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect fill="gray" fill-opacity="0" width="1" height="1"/></svg>`
 
@@ -107,6 +105,7 @@ const Library: React.FC = () => {
 
   const [select, toggleSelect] = useBoolean(false)
   const [selectedBookIds, { add, has, toggle, reset }] = useSet<string>()
+  const [searchQuery, setSearchQuery] = useState('')
 
   const [loading, setLoading] = useState<string | undefined>()
   const [readyToSync, setReadyToSync] = useState(false)
@@ -167,6 +166,19 @@ const Library: React.FC = () => {
   if (groups.length) return null
   if (!books) return null
 
+  // Filter books based on search query
+  const filteredBooks = searchQuery
+    ? books.filter((book) =>
+        (book.metadata?.title || book.name).toLowerCase().includes(searchQuery.toLowerCase()) ||
+        book.metadata?.creator?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : books
+
+  // Sort books by date added (most recent first) for "Recently Added" section
+  const recentBooks = [...filteredBooks]
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+    .slice(0, 6) // Show only first 6 books in recently added
+
   const selectedBooks = [...selectedBookIds].map(
     (id) => books.find((b) => b.id === id)!,
   )
@@ -183,33 +195,28 @@ const Library: React.FC = () => {
         handleFiles(e.dataTransfer.files)
       }}
     >
-      <div className="mb-4 space-y-2.5">
-        <div>
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold mb-4">{t('my_library')}</h1>
+        
+        {/* Search Box */}
+        <div className="mb-4">
           <TextField
-            name={SOURCE}
-            placeholder="https://link.to/remote.epub"
-            type="url"
+            placeholder={t('search_books')}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             hideLabel
             actions={[
               {
-                title: t('share'),
-                Icon: MdOutlineShare,
-                onClick(el) {
-                  if (el?.reportValidity()) {
-                    copy(`${window.location.origin}/?${SOURCE}=${el.value}`)
-                  }
-                },
-              },
-              {
-                title: t('download'),
-                Icon: MdOutlineFileDownload,
-                onClick(el) {
-                  if (el?.reportValidity()) fetchBook(el.value)
-                },
+                title: 'Search',
+                Icon: MdSearch,
+                onClick: () => {},
               },
             ]}
           />
         </div>
+
+        {/* Action Buttons */}
         <div className="flex items-center justify-between gap-4">
           <div className="space-x-2">
             {books.length ? (
@@ -329,15 +336,60 @@ const Library: React.FC = () => {
       </div>
 
       <div className="scroll h-full">
-        <ul
-          className="grid"
-          style={{
-            gridTemplateColumns: `repeat(auto-fill, minmax(calc(80px + 3vw), 1fr))`,
-            columnGap: lock(16, 32),
-            rowGap: lock(24, 40),
-          }}
-        >
-          {books.map((book) => (
+        {/* Recently Added Section */}
+        {!searchQuery && recentBooks.length > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">{t('recently_added')}</h2>
+              {recentBooks.length >= 6 && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setSearchQuery('')}
+                >
+                  {t('show_all')}
+                </Button>
+              )}
+            </div>
+            <ul
+              className="grid"
+              style={{
+                gridTemplateColumns: `repeat(auto-fill, minmax(calc(80px + 3vw), 1fr))`,
+                columnGap: lock(16, 32),
+                rowGap: lock(32, 48),
+              }}
+            >
+              {recentBooks.map((book) => (
+                <Book
+                  key={book.id}
+                  book={book}
+                  covers={covers}
+                  select={select}
+                  selected={has(book.id)}
+                  loading={loading === book.id}
+                  toggle={toggle}
+                />
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* All Books Section */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">
+              {searchQuery ? `Search Results (${filteredBooks.length})` : t('all_books')}
+            </h2>
+          </div>
+          <ul
+            className="grid"
+            style={{
+              gridTemplateColumns: `repeat(auto-fill, minmax(calc(80px + 3vw), 1fr))`,
+              columnGap: lock(16, 32),
+              rowGap: lock(32, 48),
+            }}
+          >
+            {filteredBooks.map((book) => (
             <Book
               key={book.id}
               book={book}
@@ -348,7 +400,8 @@ const Library: React.FC = () => {
               toggle={toggle}
             />
           ))}
-        </ul>
+          </ul>
+        </div>
       </div>
     </DropZone>
   )
@@ -381,42 +434,43 @@ const Book: React.FC<BookProps> = ({
   const Icon = selected ? MdCheckBox : MdCheckBoxOutlineBlank
 
   return (
-    <div className="relative flex flex-col">
-      <div
-        role="button"
-        className="border-inverse-on-surface relative border"
-        onClick={async () => {
-          if (select) {
-            toggle(book.id)
-          } else {
-            if (mobile) await router.push('/_')
-            reader.addTab(book)
-          }
-        }}
-      >
+    <div
+      className="relative flex flex-col bg-surface rounded-xl border border-outline-variant shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden"
+      role="button"
+      onClick={async () => {
+        if (select) {
+          toggle(book.id)
+        } else {
+          if (mobile) await router.push('/_')
+          reader.addTab(book)
+        }
+      }}
+    >
+      {/* Book Cover Section */}
+      <div className="relative">
         <div
           className={clsx(
-            'absolute bottom-0 h-1 bg-blue-500',
+            'absolute bottom-0 h-1 bg-blue-500 z-10',
             loading && 'progress-bit w-[5%]',
           )}
         />
         {book.percentage !== undefined && (
-          <div className="typescale-body-large absolute right-0 bg-gray-500/60 px-2 text-gray-100">
+          <div className="typescale-body-large absolute top-2 right-2 bg-gray-500/60 px-2 py-1 rounded text-gray-100 z-10">
             {(book.percentage * 100).toFixed()}%
           </div>
         )}
         <img
           src={cover ?? placeholder}
           alt="Cover"
-          className="mx-auto aspect-[9/12] object-cover"
+          className="w-full aspect-[2/3] object-cover"
           draggable={false}
         />
         {select && (
-          <div className="absolute bottom-1 right-1">
+          <div className="absolute bottom-2 right-2 z-10">
             <Icon
               size={24}
               className={clsx(
-                '-m-1',
+                '-m-1 bg-white/80 rounded-full p-1',
                 selected ? 'text-tertiary' : 'text-outline',
               )}
             />
@@ -424,18 +478,39 @@ const Book: React.FC<BookProps> = ({
         )}
       </div>
 
-      <div
-        className="line-clamp-2 text-on-surface-variant typescale-body-small lg:typescale-body-medium mt-2 w-full"
-        title={book.name}
-      >
-        <MdCheckCircle
-          className={clsx(
-            'mr-1 mb-0.5 inline',
-            remoteFile ? 'text-tertiary' : 'text-surface-variant',
-          )}
-          size={16}
-        />
-        {book.name}
+      {/* Book Info Section */}
+      <div className="p-3 space-y-2">
+        {/* Book Title */}
+        <div
+          className="line-clamp-2 text-on-surface font-medium typescale-body-medium"
+          title={book.metadata?.title || book.name}
+        >
+          {book.metadata?.title || book.name}
+        </div>
+        
+        {/* Author */}
+        {book.metadata?.creator && (
+          <div
+            className="line-clamp-1 text-on-surface-variant typescale-body-small"
+            title={book.metadata.creator}
+          >
+            {book.metadata.creator}
+          </div>
+        )}
+        
+        {/* Cloud sync indicator */}
+        <div className="flex items-center pt-1">
+          <MdCheckCircle
+            className={clsx(
+              'mr-1',
+              remoteFile ? 'text-tertiary' : 'text-surface-variant',
+            )}
+            size={12}
+          />
+          <span className="text-on-surface-variant typescale-body-small opacity-60">
+            {remoteFile ? 'Synced' : 'Local'}
+          </span>
+        </div>
       </div>
     </div>
   )

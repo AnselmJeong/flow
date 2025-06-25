@@ -8,6 +8,7 @@ export type Action =
   | 'image'
   | 'timeline'
   | 'theme'
+  | 'ai-chat'
 export const actionState = atom<Action | undefined>({
   key: 'action',
   default: undefined,

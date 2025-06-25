@@ -7,6 +7,27 @@ import { Annotation } from './annotation'
 import { fileToEpub } from './file'
 import { TypographyConfiguration } from './state'
 
+export interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: number
+  context?: {
+    text: string
+    cfi: string
+    bookId: string
+  }
+}
+
+export interface ChatSession {
+  id: string
+  bookId: string
+  title: string
+  messages: ChatMessage[]
+  createdAt: number
+  updatedAt: number
+}
+
 export interface FileRecord {
   id: string
   file: File
@@ -29,6 +50,7 @@ export interface BookRecord {
   percentage?: number
   definitions: string[]
   annotations: Annotation[]
+  chatSessions: ChatSession[]
   configuration?: {
     typography?: TypographyConfiguration
   }
@@ -40,14 +62,30 @@ export class DB extends Dexie {
   files!: Table<FileRecord>
   covers!: Table<CoverRecord>
   books!: Table<BookRecord>
+  chatSessions!: Table<ChatSession>
 
   constructor(name: string) {
     super(name)
 
-    this.version(5).stores({
+    this.version(6).stores({
       books:
-        'id, name, size, metadata, createdAt, updatedAt, cfi, percentage, definitions, annotations, configuration',
+        'id, name, size, metadata, createdAt, updatedAt, cfi, percentage, definitions, annotations, chatSessions, configuration',
+      chatSessions:
+        'id, bookId, title, messages, createdAt, updatedAt',
     })
+
+    this.version(5)
+      .stores({
+        books:
+          'id, name, size, metadata, createdAt, updatedAt, cfi, percentage, definitions, annotations, configuration',
+      })
+      .upgrade(async (t) => {
+        t.table('books')
+          .toCollection()
+          .modify((r) => {
+            r.chatSessions = []
+          })
+      })
 
     this.version(4)
       .stores({

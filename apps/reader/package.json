@@ -9,9 +9,10 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@github/mini-throttle": "2.1.0",
     "@flow/epubjs": "workspace:*",
     "@flow/internal": "workspace:*",
+    "@github/mini-throttle": "2.1.0",
+    "@google/generative-ai": "0.24.1",
     "@literal-ui/core": "0.0.13",
     "@literal-ui/hooks": "0.0.8",
     "@literal-ui/next": "0.0.3",
@@ -36,6 +37,7 @@
     "react-focus-lock": "2.9.1",
     "react-highlight-words": "0.18.0",
     "react-icons": "4.3.1",
+    "react-markdown": "10.1.0",
     "react-photo-view": "1.1.2",
     "react-polymorphic-types": "2.0.0",
     "react-use": "17.4.0",

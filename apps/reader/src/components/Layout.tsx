@@ -10,6 +10,7 @@ import {
   MdToc,
   MdTimeline,
   MdOutlineLightMode,
+  MdChat,
 } from 'react-icons/md'
 import { RiFontSize, RiHome6Line, RiSettings5Line } from 'react-icons/ri'
 import { useRecoilState } from 'recoil'
@@ -21,7 +22,6 @@ import {
   useBackground,
   useColorScheme,
   useMobile,
-  useSetAction,
   useTranslation,
 } from '../hooks'
 import { reader, useReaderSnapshot } from '../models'
@@ -30,6 +30,7 @@ import { activeClass } from '../styles'
 
 import { SplitView, useSplitViewItem } from './base'
 import { Settings } from './pages'
+import { AIChatView } from './viewlets/AIChatView'
 import { AnnotationView } from './viewlets/AnnotationView'
 import { ImageView } from './viewlets/ImageView'
 import { SearchView } from './viewlets/SearchView'
@@ -42,8 +43,11 @@ export const Layout: React.FC = ({ children }) => {
   useColorScheme()
 
   const [ready, setReady] = useState(false)
-  const setAction = useSetAction()
+  const [selectedText, setSelectedText] = useState<string>()
+  const [selectedCfi, setSelectedCfi] = useState<string>()
+  const [action, setAction] = useAction()
   const mobile = useMobile()
+  const r = useReaderSnapshot()
 
   useEffect(() => {
     if (mobile === undefined) return
@@ -51,13 +55,29 @@ export const Layout: React.FC = ({ children }) => {
     setReady(true)
   }, [mobile, setAction])
 
+  // Listen for AI chat requests from text selection
+  useEffect(() => {
+    const handleAIChatRequest = (event: CustomEvent) => {
+      const { text, cfi } = event.detail
+      setSelectedText(text)
+      setSelectedCfi(cfi)
+      setAction('ai-chat')
+    }
+
+    window.addEventListener('ai-chat-request', handleAIChatRequest as EventListener)
+    return () => {
+      window.removeEventListener('ai-chat-request', handleAIChatRequest as EventListener)
+    }
+  }, [setAction])
+
   return (
     <div id="layout" className="select-none">
       <SplitView>
         {mobile === false && <ActivityBar />}
         {mobile === true && <NavigationBar />}
-        {ready && <SideBar />}
+        {ready && <SideBar selectedText={selectedText} selectedCfi={selectedCfi} />}
         {ready && <Reader>{children}</Reader>}
+        {ready && action === 'ai-chat' && <AIChatSidePanel selectedText={selectedText} selectedCfi={selectedCfi} focusedBookTab={r.focusedBookTab} onClose={() => setAction(undefined)} />}
       </SplitView>
     </div>
   )
@@ -124,6 +144,7 @@ const viewActions: IViewAction[] = [
     View: ThemeView,
     env: Env.Desktop | Env.Mobile,
   },
+  // AI Chat moved to separate side panel
 ]
 
 const ActivityBar: React.FC = () => {
@@ -164,6 +185,13 @@ function ViewActionBar({ className, env }: EnvActionBarProps) {
             />
           )
         })}
+      {/* AI Chat Button */}
+      <Action
+        title="AI Chat"
+        Icon={MdChat}
+        active={action === 'ai-chat'}
+        onClick={() => setAction(action === 'ai-chat' ? undefined : 'ai-chat')}
+      />
     </ActionBar>
   )
 }
@@ -284,24 +312,30 @@ const Action: React.FC<ActionProps> = ({
   )
 }
 
-const SideBar: React.FC = () => {
+interface SideBarProps {
+  selectedText?: string
+  selectedCfi?: string
+}
+
+const SideBar: React.FC<SideBarProps> = ({ selectedText, selectedCfi }) => {
   const [action, setAction] = useAction()
   const mobile = useMobile()
   const t = useTranslation()
+  const r = useReaderSnapshot()
 
   const { size } = useSplitViewItem(SideBar, {
     preferredSize: 240,
     minSize: 160,
-    visible: !!action,
+    visible: !!action && action !== 'ai-chat',
   })
 
   return (
     <>
-      {action && mobile && <Overlay onClick={() => setAction(undefined)} />}
+      {action && action !== 'ai-chat' && mobile && <Overlay onClick={() => setAction(undefined)} />}
       <div
         className={clsx(
           'SideBar bg-surface flex flex-col',
-          !action && '!hidden',
+          (!action || action === 'ai-chat') && '!hidden',
           mobile ? 'absolute inset-y-0 right-0 z-10' : '',
         )}
         style={{ width: mobile ? '75%' : size }}
@@ -312,6 +346,11 @@ const SideBar: React.FC = () => {
             name={t(`${name}.title`)}
             title={t(`${title}.title`)}
             className={clsx(name !== action && '!hidden')}
+            {...(name === 'ai-chat' ? { 
+              selectedText: selectedText, 
+              selectedCfi: selectedCfi,
+              tab: r.focusedBookTab || null
+            } : {})}
           />
         ))}
       </div>
@@ -336,5 +375,43 @@ const Reader: React.FC = ({ className, ...props }: ReaderProps) => {
       )}
       {...props}
     />
+  )
+}
+
+interface AIChatSidePanelProps {
+  selectedText?: string
+  selectedCfi?: string
+  focusedBookTab?: any
+  onClose: () => void
+}
+
+const AIChatSidePanel: React.FC<AIChatSidePanelProps> = ({ selectedText, selectedCfi, focusedBookTab, onClose }) => {
+  const mobile = useMobile()
+  
+  const { size } = useSplitViewItem(AIChatSidePanel, {
+    preferredSize: 800,
+    minSize: 300,
+    visible: true,
+  })
+
+  return (
+    <>
+      {mobile && <Overlay onClick={onClose} />}
+      <div
+        className={clsx(
+          'AIChatSidePanel bg-surface flex flex-col',
+          mobile ? 'absolute inset-y-0 right-0 z-10' : '',
+        )}
+        style={{ width: mobile ? '85%' : size }}
+      >
+        <AIChatView
+          tab={focusedBookTab}
+          selectedText={selectedText}
+          selectedCfi={selectedCfi}
+          onClose={onClose}
+          className="h-full"
+        />
+      </div>
+    </>
   )
 }

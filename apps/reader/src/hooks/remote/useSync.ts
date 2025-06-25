@@ -60,6 +60,12 @@ export function useSync(tab: BookTab) {
 
   useEffect(() => {
     sync({
+      chatSessions: book.chatSessions,
+    })
+  }, [book.chatSessions, sync])
+
+  useEffect(() => {
+    sync({
       configuration: book.configuration,
     })
   }, [book.configuration, sync])

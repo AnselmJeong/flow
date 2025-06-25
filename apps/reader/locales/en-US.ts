@@ -1,5 +1,10 @@
 export default {
   'home.title': 'Home',
+  'home.my_library': 'My Library',
+  'home.recently_added': 'Recently Added',
+  'home.all_books': 'All Books',
+  'home.search_books': 'Search for books',
+  'home.show_all': 'Show all',
   'home.share': 'Share',
   'home.download': 'Download',
   'home.download_sample_book': 'Download sample book',
@@ -22,6 +27,8 @@ export default {
   'annotation.definitions': 'Definitions',
   'annotation.annotations': 'Annotations',
   'annotation.copy_as_markdown': 'Copy as Markdown',
+
+  'ai_chat.title': 'AI Chat',
 
   'image.title': 'Image',
 
@@ -58,6 +65,7 @@ export default {
   'menu.copy': 'Copy',
   'menu.search_in_book': 'Search in book',
   'menu.annotate': 'Annotate',
+  'menu.ai_chat': 'AI Chat',
   'menu.define': 'Define',
   'menu.undefine': 'Undefine',
   'menu.create': 'Create',

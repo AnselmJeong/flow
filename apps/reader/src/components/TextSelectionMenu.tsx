@@ -4,10 +4,9 @@ import { useCallback, useRef, useState } from 'react'
 import FocusLock from 'react-focus-lock'
 import {
   MdCopyAll,
-  MdOutlineAddBox,
   MdOutlineEdit,
-  MdOutlineIndeterminateCheckBox,
   MdSearch,
+  MdChat,
 } from 'react-icons/md'
 import { useSnapshot } from 'valtio'
 
@@ -223,27 +222,21 @@ const TextSelectionMenuRenderer: React.FC<TextSelectionMenuRendererProps> = ({
                 setAnnotate(true)
               }}
             />
-            {tab.isDefined(text) ? (
-              <IconButton
-                title={t('undefine')}
-                Icon={MdOutlineIndeterminateCheckBox}
-                size={ICON_SIZE}
-                onClick={() => {
-                  hide()
-                  tab.undefine(text)
-                }}
-              />
-            ) : (
-              <IconButton
-                title={t('define')}
-                Icon={MdOutlineAddBox}
-                size={ICON_SIZE}
-                onClick={() => {
-                  hide()
-                  tab.define([text])
-                }}
-              />
-            )}
+            <IconButton
+              title={t('ai_chat')}
+              Icon={MdChat}
+              size={ICON_SIZE}
+              onClick={() => {
+                hide()
+                setAction('ai-chat')
+                // Store selected text and CFI for AI chat
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('ai-chat-request', {
+                    detail: { text, cfi }
+                  }))
+                }
+              }}
+            />
           </div>
         )}
         <div className="space-y-2">
