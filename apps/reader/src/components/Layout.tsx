@@ -52,16 +52,20 @@ export const Layout: React.FC = ({ children }) => {
 
   useEffect(() => {
     if (mobile === undefined) return
-    setAction(mobile ? undefined : 'toc')
+    // Only auto-open TOC for ePub files, not PDFs
+    const focusedTab = r.focusedBookTab
+    const isPdf = focusedTab && 'currentPage' in focusedTab // PdfTab has currentPage, BookTab doesn't
+    setAction(mobile ? undefined : (isPdf ? undefined : 'toc'))
     setReady(true)
-  }, [mobile, setAction])
+  }, [mobile, setAction, r.focusedBookTab])
 
   // Listen for AI chat requests from text selection
   useEffect(() => {
     const handleAIChatRequest = (event: CustomEvent) => {
-      const { text, cfi } = event.detail
+      const { text, cfi, page } = event.detail
       setSelectedText(text)
-      setSelectedCfi(cfi)
+      // For PDF, use page-based CFI format; for ePub, use the actual CFI
+      setSelectedCfi(cfi || (page ? `page-${page}` : undefined))
       setAiChatOpen(true)
     }
 

@@ -90,14 +90,31 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
   }, [apiKey, book?.id, loadSessions])
 
   const handleContextClick = useCallback(() => {
-    if (selectedCfi && tab?.display) {
+    if (selectedCfi && tab) {
       try {
-        // Navigate to the selected location using CFI
-        tab.display(selectedCfi, false) // Set returnable to false to avoid locationToReturn issues
+        console.log('Context click - selectedCfi:', selectedCfi, 'tab type:', tab.constructor.name)
+        // Check if this is a page-based CFI (for PDF) or actual CFI (for ePub)
+        if (selectedCfi.startsWith('page-')) {
+          const pageNumber = parseInt(selectedCfi.replace('page-', ''))
+          console.log('Navigating to PDF page:', pageNumber)
+          if (tab.goToPage) {
+            // PDF tab - use goToPage method
+            tab.goToPage(pageNumber)
+            console.log('Called goToPage with:', pageNumber)
+          } else {
+            console.warn('tab.goToPage method not available')
+          }
+        } else if (tab.display) {
+          console.log('Navigating to ePub CFI:', selectedCfi)
+          // ePub tab - use display method with CFI
+          tab.display(selectedCfi, false) // Set returnable to false to avoid locationToReturn issues
+        }
         // Keep the AI chat view open after navigation
       } catch (error) {
         console.error('Error navigating to context location:', error)
       }
+    } else {
+      console.log('Cannot navigate - selectedCfi:', selectedCfi, 'tab:', !!tab)
     }
   }, [selectedCfi, tab])
 
@@ -115,9 +132,18 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
     setInput('')
 
     try {
-      const context = selectedText && selectedCfi 
-        ? { text: selectedText, cfi: selectedCfi }
-        : undefined
+      let context: { text: string; cfi?: string; page?: number } | undefined = undefined
+      
+      if (selectedText && selectedCfi) {
+        if (selectedCfi.startsWith('page-')) {
+          // PDF context - extract page number
+          const pageNumber = parseInt(selectedCfi.replace('page-', ''))
+          context = { text: selectedText, page: pageNumber }
+        } else {
+          // ePub context - use CFI
+          context = { text: selectedText, cfi: selectedCfi }
+        }
+      }
 
       const result = await aiService.sendMessage(
         messageContent,
@@ -200,6 +226,7 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
             Gemini API Key
           </label>
           <TextField
+            name="apiKey"
             type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
@@ -343,15 +370,41 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
               <div 
                 className="rounded-lg bg-white p-4 shadow-sm border cursor-pointer hover:shadow-md transition-shadow"
                 onClick={() => {
+                  console.log('Context area clicked!')
+                  console.log('selectedText:', selectedText)
+                  console.log('selectedCfi:', selectedCfi)
+                  console.log('currentSession:', currentSession)
+                  
                   if (selectedText && selectedCfi) {
+                    console.log('Using selectedText context')
                     handleContextClick()
                   } else if (currentSession) {
                     const firstUserMessage = currentSession.messages.find(m => m.role === 'user' && m.context)
-                    if (firstUserMessage?.context?.cfi && tab?.display) {
-                      try {
-                        tab.display(firstUserMessage.context.cfi, false)
-                      } catch (error) {
-                        console.error('Error navigating to session context location:', error)
+                    console.log('firstUserMessage with context:', firstUserMessage)
+                    
+                    if (firstUserMessage?.context) {
+                      console.log('Found context:', firstUserMessage.context)
+                      
+                      // Handle PDF context (page-based)
+                      if (firstUserMessage.context.page && tab && 'goToPage' in tab) {
+                        console.log('Navigating to PDF page:', firstUserMessage.context.page)
+                        try {
+                          tab.goToPage(firstUserMessage.context.page)
+                        } catch (error) {
+                          console.error('Error navigating to PDF page:', error)
+                        }
+                      }
+                      // Handle ePub context (CFI-based)  
+                      else if (firstUserMessage.context.cfi && tab?.display) {
+                        console.log('Navigating to ePub CFI:', firstUserMessage.context.cfi)
+                        try {
+                          tab.display(firstUserMessage.context.cfi, false)
+                        } catch (error) {
+                          console.error('Error navigating to ePub CFI:', error)
+                        }
+                      }
+                      else {
+                        console.log('No valid navigation method found')
                       }
                     }
                   }
@@ -404,7 +457,8 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
               <div className="flex gap-3 items-end">
                 <div className="flex-1">
                   <TextField
-                    ref={inputRef}
+                    name="chatInput"
+                    mRef={inputRef}
                     as="textarea"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}

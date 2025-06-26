@@ -522,8 +522,16 @@ export class PdfTab extends BookTab {
   }
 
   goToPage(page: number) {
-    this.currentPage = Math.max(1, Math.min(page, this.totalPages))
-    this.updateBook({ currentPage: this.currentPage })
+    const newPage = Math.max(1, Math.min(page, this.totalPages))
+    console.log('PdfTab.goToPage called:', { from: this.currentPage, to: newPage })
+    
+    // Trigger the viewer update using React PDF Viewer's jumpToPage
+    console.log('Triggering pdf-page-change event...')
+    window.dispatchEvent(new CustomEvent('pdf-page-change', {
+      detail: { page: newPage, tabId: this.id }
+    }))
+    
+    console.log('PdfTab.goToPage completed')
   }
 
   // Override annotation methods for PDF page-based positioning

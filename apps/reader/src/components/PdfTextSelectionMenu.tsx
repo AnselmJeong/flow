@@ -70,8 +70,13 @@ export const PdfTextSelectionMenu: React.FC<PdfTextSelectionMenuProps> = ({
   const handleChat = useCallback(() => {
     // Trigger AI chat with selected text as context
     console.log('AI Chat:', selectedText)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ai-chat-request', {
+        detail: { text: selectedText, page: pageNumber }
+      }))
+    }
     onClose()
-  }, [selectedText, onClose])
+  }, [selectedText, pageNumber, onClose])
 
   const handleAnnotate = useCallback(() => {
     if (annotate) {

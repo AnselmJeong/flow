@@ -1,7 +1,10 @@
-import React, { useState, useCallback } from 'react'
-import { Worker, Viewer } from '@react-pdf-viewer/core'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
+import { Worker, Viewer, ViewMode, ScrollMode, SpecialZoomLevel } from '@react-pdf-viewer/core'
 import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout'
 import { highlightPlugin, Trigger, HighlightArea } from '@react-pdf-viewer/highlight'
+import { pageNavigationPlugin } from '@react-pdf-viewer/page-navigation'
+import { scrollModePlugin } from '@react-pdf-viewer/scroll-mode'
+import { useSnapshot } from 'valtio'
 
 import '@react-pdf-viewer/core/lib/styles/index.css'
 import '@react-pdf-viewer/default-layout/lib/styles/index.css'
@@ -46,6 +49,146 @@ export const SimplePdfViewer: React.FC<SimplePdfViewerProps> = ({ fileUrl, tab, 
     annotationId: string
     position: { x: number; y: number }
   } | null>(null)
+  // Reference to page navigation functions
+  const jumpToPageRef = useRef<((pageIndex: number) => void) | null>(null)
+  const [viewerKey, setViewerKey] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
+
+  // Subscribe to tab state changes (for external page navigation)
+  const tabSnapshot = useSnapshot(tab || {})
+  
+  // Listen for custom page change events from the tab
+  useEffect(() => {
+    const handlePdfPageChange = (event: CustomEvent) => {
+      const { page, tabId } = event.detail
+      console.log('Received pdf-page-change event:', { page, tabId, currentTabId: tab?.id })
+      
+      console.log('Condition check: tab && tabId === tab.id && page !== currentPage', {
+        hasTab: !!tab,
+        tabIdMatch: tabId === tab?.id,
+        pageIsDifferent: page !== currentPage,
+        page,
+        currentPage
+      })
+      
+      if (tab && tabId === tab.id) { // Remove the page !== currentPage condition
+        console.log('Using jumpToPage to navigate from', currentPage, 'to', page)
+        console.log('jumpToPageRef.current:', jumpToPageRef.current)
+        console.log('pageNavigationPluginInstance:', pageNavigationPluginInstance)
+        console.log('pageNavigationPluginInstance.jumpToPage:', pageNavigationPluginInstance.jumpToPage)
+        console.log('Target page (0-based):', page - 1)
+        
+                // Try multiple ways to get jumpToPage function
+        const jumpToPageFunction = jumpToPageRef.current || pageNavigationPluginInstance.jumpToPage
+        
+        if (jumpToPageFunction) {
+          try {
+            console.log('Calling jumpToPage with page:', page - 1)
+            const result = jumpToPageFunction(page - 1) // Convert to 0-based
+            console.log('jumpToPage call result:', result)
+            console.log('Successfully called jumpToPage')
+          } catch (error) {
+            console.error('Error calling jumpToPage:', error)
+            // Fallback to re-render
+            console.log('Falling back to re-render method')
+            setCurrentPage(page)
+            setViewerKey(prev => prev + 1)
+          }
+        } else {
+          console.warn('jumpToPage function not available, using re-render method')
+          
+          // Force re-render with initialPage
+          console.log('Forcing page change by updating state and key')
+          setCurrentPage(page)
+          setViewerKey(prev => prev + 1) // Force complete re-render
+        }
+      }
+    }
+
+    window.addEventListener('pdf-page-change', handlePdfPageChange as EventListener)
+    return () => {
+      window.removeEventListener('pdf-page-change', handlePdfPageChange as EventListener)
+    }
+  }, [tab, currentPage])
+  
+  // Create page navigation plugin instance
+  const pageNavigationPluginInstance = pageNavigationPlugin({
+    enableShortcuts: true  // Enable keyboard shortcuts
+  })
+  
+  // Create scroll mode plugin instance for dual page view
+  const scrollModePluginInstance = scrollModePlugin()
+  
+  // Store the jumpToPage function when plugin is ready
+  useEffect(() => {
+    console.log('Setting up jumpToPage function from pageNavigationPlugin:', pageNavigationPluginInstance.jumpToPage)
+    jumpToPageRef.current = pageNavigationPluginInstance.jumpToPage
+    
+    // Also get navigation functions for keyboard shortcuts
+    const { jumpToNextPage, jumpToPreviousPage } = pageNavigationPluginInstance
+    
+    // Debug: test if jumpToPage works
+    setTimeout(() => {
+      console.log('jumpToPage function available:', !!jumpToPageRef.current)
+      if (jumpToPageRef.current) {
+        console.log('jumpToPage function type:', typeof jumpToPageRef.current)
+      }
+    }, 1000)
+    
+    // Also set it for immediate use
+    if (pageNavigationPluginInstance.jumpToPage) {
+      jumpToPageRef.current = pageNavigationPluginInstance.jumpToPage
+      console.log('jumpToPage set immediately')
+    }
+    
+    // Add keyboard event listeners for page navigation
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Handle arrow keys specifically for PDF navigation
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        // Prevent all default behaviors for arrow keys
+        event.preventDefault()
+        event.stopPropagation()
+        event.stopImmediatePropagation()
+        
+        if (event.key === 'ArrowLeft' && jumpToPreviousPage) {
+          jumpToPreviousPage()
+          console.log('Previous page via ArrowLeft (forced)')
+        } else if (event.key === 'ArrowRight' && jumpToNextPage) {
+          jumpToNextPage()
+          console.log('Next page via ArrowRight (forced)')
+        }
+        return false
+      }
+      
+      // Handle PageUp/PageDown normally
+      switch (event.key) {
+        case 'PageUp':
+          if (jumpToPreviousPage) {
+            event.preventDefault()
+            jumpToPreviousPage()
+            console.log('Previous page via PageUp')
+          }
+          break
+        case 'PageDown':
+          if (jumpToNextPage) {
+            event.preventDefault()
+            jumpToNextPage()
+            console.log('Next page via PageDown')
+          }
+          break
+      }
+    }
+    
+    // Add event listener to document with capture mode for better control
+    document.addEventListener('keydown', handleKeyDown, true)
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true)
+    }
+  }, [pageNavigationPluginInstance])
+  
+  // Also try to get jumpToPage from defaultLayoutPlugin
+  const [defaultLayoutJumpToPage, setDefaultLayoutJumpToPage] = useState<((pageIndex: number) => void) | null>(null)
 
   // Load existing highlights from annotations
   React.useEffect(() => {
@@ -152,9 +295,15 @@ export const SimplePdfViewer: React.FC<SimplePdfViewerProps> = ({ fileUrl, tab, 
           title="AI Chat"
           onClick={() => {
             // Trigger AI chat
+            const selectedPageNumber = props.highlightAreas && props.highlightAreas[0] 
+              ? props.highlightAreas[0].pageIndex + 1  // Convert from 0-based to 1-based
+              : currentPage // Fallback to current page
+            
+            console.log('AI Chat triggered with page:', selectedPageNumber, 'from highlightAreas:', props.highlightAreas)
+            
             if (typeof window !== 'undefined') {
               window.dispatchEvent(new CustomEvent('ai-chat-request', {
-                detail: { text: props.selectedText, page: currentPage }
+                detail: { text: props.selectedText, page: selectedPageNumber }
               }))
             }
             props.cancel()
@@ -221,9 +370,32 @@ export const SimplePdfViewer: React.FC<SimplePdfViewerProps> = ({ fileUrl, tab, 
   const defaultLayoutPluginInstance = defaultLayoutPlugin({
     // Handle page changes
     onPageChange: useCallback((e: any) => {
-      setCurrentPage(e.currentPage + 1) // Convert from 0-based to 1-based
+      const newPage = e.currentPage + 1 // Convert from 0-based to 1-based
+      console.log('PDF viewer page change:', { from: currentPage, to: newPage })
+      setCurrentPage(newPage)
+      // Don't update tab here to avoid loops - let the external events handle it
+    }, [currentPage]),
+    // Handle document load to get total pages
+    onDocumentLoad: useCallback((e: any) => {
+      console.log('PDF document loaded, total pages:', e.doc.numPages)
+      setTotalPages(e.doc.numPages)
     }, [])
   })
+  
+  // Try to access jumpToPage from defaultLayoutPlugin after it's created
+  useEffect(() => {
+    console.log('defaultLayoutPluginInstance:', defaultLayoutPluginInstance)
+    
+    // The default layout plugin might expose page navigation functions
+    if (defaultLayoutPluginInstance && typeof defaultLayoutPluginInstance === 'object') {
+      const keys = Object.keys(defaultLayoutPluginInstance)
+      console.log('defaultLayoutPlugin keys:', keys)
+      
+      // Look for page navigation properties
+      const pageNavigation = keys.find(key => key.includes('page') || key.includes('Page') || key.includes('jump'))
+      console.log('Found page navigation related keys:', pageNavigation)
+    }
+  }, [defaultLayoutPluginInstance])
 
   // Function to delete highlight
   const deleteHighlight = useCallback((annotationId: string) => {
@@ -270,8 +442,17 @@ export const SimplePdfViewer: React.FC<SimplePdfViewerProps> = ({ fileUrl, tab, 
       >
         <style dangerouslySetInnerHTML={{ __html: pdfViewerStyles }} />
         <Viewer 
+          key={viewerKey}
           fileUrl={fileUrl}
-          plugins={[defaultLayoutPluginInstance, highlightPluginInstance]}
+          plugins={[defaultLayoutPluginInstance, highlightPluginInstance, pageNavigationPluginInstance, scrollModePluginInstance]}
+          initialPage={currentPage - 1} // Convert to 0-based for react-pdf-viewer
+          defaultScale={SpecialZoomLevel.PageFit}
+          scrollMode={ScrollMode.Page}
+          viewMode={
+            // Use DualPageWithCover for better odd page handling
+            // This treats the first page as cover and pairs subsequent pages properly
+            ViewMode.DualPageWithCover
+          }
         />
         
         {/* Delete highlight menu */}

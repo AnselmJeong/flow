@@ -18,7 +18,8 @@ export class AIService {
     sessionId?: string,
     context?: {
       text: string
-      cfi: string
+      cfi?: string
+      page?: number
     }
   ): Promise<{ message: ChatMessage; sessionId: string }> {
     const timestamp = Date.now()
@@ -190,7 +191,7 @@ export class AIService {
     }
   }
 
-  private generateSessionTitle(content: string, context?: { text: string; cfi: string }): string {
+  private generateSessionTitle(content: string, context?: { text: string; cfi?: string; page?: number }): string {
     if (context?.text) {
       // Use context text for title (first 30 characters)
       const contextTitle = context.text.slice(0, 30).trim()
