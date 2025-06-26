@@ -137,32 +137,32 @@ export const PdfTextSelectionMenu: React.FC<PdfTextSelectionMenuProps> = ({
           ) : (
             <div className="text-on-surface-variant -mx-1 mb-3 flex gap-1">
               <IconButton
+                Icon={MdCopyAll}
+                size={ICON_SIZE}
                 title={t('copy')}
                 onClick={handleCopy}
-              >
-                <MdCopyAll size={ICON_SIZE} />
-              </IconButton>
+              />
               
               <IconButton
+                Icon={MdSearch}
+                size={ICON_SIZE}
                 title={t('search')}
                 onClick={handleSearch}
-              >
-                <MdSearch size={ICON_SIZE} />
-              </IconButton>
+              />
 
               <IconButton
+                Icon={MdOutlineEdit}
+                size={ICON_SIZE}
                 title="Highlight"
                 onClick={handleAnnotate}
-              >
-                <MdOutlineEdit size={ICON_SIZE} />
-              </IconButton>
+              />
 
               <IconButton
+                Icon={MdChat}
+                size={ICON_SIZE}
                 title="AI Chat"
                 onClick={handleChat}
-              >
-                <MdChat size={ICON_SIZE} />
-              </IconButton>
+              />
             </div>
           )}
 
@@ -188,15 +188,13 @@ export const PdfTextSelectionMenu: React.FC<PdfTextSelectionMenuProps> = ({
               {/* Action buttons */}
               <div className="flex gap-1 ml-auto">
                 <Button
-                  variant="text"
-                  size="sm"
+                  variant="secondary"
                   onClick={() => setAnnotate(false)}
                 >
                   Cancel
                 </Button>
                 <Button
-                  variant="text"
-                  size="sm"
+                  variant="primary"
                   onClick={handleAnnotate}
                 >
                   Save
@@ -208,8 +206,7 @@ export const PdfTextSelectionMenu: React.FC<PdfTextSelectionMenuProps> = ({
           {existingAnnotation && !annotate && (
             <div className="border-t border-outline-variant pt-2 mt-2">
               <Button
-                variant="text"
-                size="sm"
+                variant="secondary"
                 onClick={handleRemoveAnnotation}
                 className="text-error"
               >

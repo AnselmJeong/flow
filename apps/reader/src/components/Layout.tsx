@@ -439,7 +439,9 @@ interface AIChatSidePanelProps {
 const AIChatSidePanel: React.FC<AIChatSidePanelProps> = ({ selectedText, selectedCfi, focusedBookTab, onClose }) => {
   const mobile = useMobile()
   
-  const { size } = useSplitViewItem(AIChatSidePanel, {
+  // Create a unique reference for split view
+  const AIChatSidePanelRef = {} as any
+  const { size } = useSplitViewItem(AIChatSidePanelRef, {
     preferredSize: 800,
     minSize: 300,
     visible: true,

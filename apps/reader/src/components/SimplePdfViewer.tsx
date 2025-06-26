@@ -195,13 +195,13 @@ export const SimplePdfViewer: React.FC<SimplePdfViewerProps> = ({ fileUrl, tab, 
     if (tab?.book.annotations) {
       const areas: any[] = []
       
-      const highlights = tab.book.annotations.filter(a => a.type === 'highlight')
+      const highlights = tab.book.annotations.filter((a: any) => a.type === 'highlight')
       console.log('Loading highlights:', highlights.length)
       
-      highlights.forEach(annotation => {
+      highlights.forEach((annotation: any) => {
         // If we have stored highlight areas, use them
         if (annotation.highlightAreas && Array.isArray(annotation.highlightAreas)) {
-          const areasWithId = annotation.highlightAreas.map(area => ({
+          const areasWithId = annotation.highlightAreas.map((area: any) => ({
             ...area,
             annotationId: annotation.id // Add annotation ID for deletion
           }))
@@ -251,7 +251,7 @@ export const SimplePdfViewer: React.FC<SimplePdfViewerProps> = ({ fileUrl, tab, 
             const pageIndex = props.highlightAreas[0]?.pageIndex + 1
             
             const existingAnnotation = tab?.book.annotations.find(
-              a => a.type === 'highlight' && 
+              (a: any) => a.type === 'highlight' && 
                    a.text?.trim() === selectedText && 
                    a.page === pageIndex
             )
@@ -271,7 +271,7 @@ export const SimplePdfViewer: React.FC<SimplePdfViewerProps> = ({ fileUrl, tab, 
               // Use the first area's coordinates for storage
               const area = newAreas[0]
               // Clean the highlight areas to remove any non-serializable properties
-              const cleanAreas = newAreas.map(area => ({
+              const cleanAreas = newAreas.map((area: any) => ({
                 pageIndex: area.pageIndex,
                 height: area.height,
                 width: area.width,
@@ -322,7 +322,7 @@ export const SimplePdfViewer: React.FC<SimplePdfViewerProps> = ({ fileUrl, tab, 
         .filter((area) => area.pageIndex === props.pageIndex)
         .map((area, idx) => (
           <div
-            key={`${area.annotationId}-${idx}-${area.pageIndex}-${area.left}-${area.top}`}
+            key={`${(area as any).annotationId}-${idx}-${area.pageIndex}-${area.left}-${area.top}`}
             className="pdf-highlight"
             style={{
               ...props.getCssProperties(area, props.rotation),
@@ -336,20 +336,20 @@ export const SimplePdfViewer: React.FC<SimplePdfViewerProps> = ({ fileUrl, tab, 
             onMouseDown={(e) => {
               e.stopPropagation()
               e.preventDefault()
-              console.log('Highlight clicked:', area.annotationId)
+              console.log('Highlight clicked:', (area as any).annotationId)
               // Show delete menu
               setHighlightToDelete({
-                annotationId: area.annotationId,
+                annotationId: (area as any).annotationId,
                 position: { x: e.clientX, y: e.clientY }
               })
             }}
             onPointerDown={(e) => {
               e.stopPropagation()
               e.preventDefault()
-              console.log('Highlight pointer down:', area.annotationId)
+              console.log('Highlight pointer down:', (area as any).annotationId)
               // Show delete menu
               setHighlightToDelete({
-                annotationId: area.annotationId,
+                annotationId: (area as any).annotationId,
                 position: { x: e.clientX, y: e.clientY }
               })
             }}
@@ -367,20 +367,7 @@ export const SimplePdfViewer: React.FC<SimplePdfViewerProps> = ({ fileUrl, tab, 
   })
 
   // Create the default layout plugin instance
-  const defaultLayoutPluginInstance = defaultLayoutPlugin({
-    // Handle page changes
-    onPageChange: useCallback((e: any) => {
-      const newPage = e.currentPage + 1 // Convert from 0-based to 1-based
-      console.log('PDF viewer page change:', { from: currentPage, to: newPage })
-      setCurrentPage(newPage)
-      // Don't update tab here to avoid loops - let the external events handle it
-    }, [currentPage]),
-    // Handle document load to get total pages
-    onDocumentLoad: useCallback((e: any) => {
-      console.log('PDF document loaded, total pages:', e.doc.numPages)
-      setTotalPages(e.doc.numPages)
-    }, [])
-  })
+  const defaultLayoutPluginInstance = defaultLayoutPlugin()
   
   // Try to access jumpToPage from defaultLayoutPlugin after it's created
   useEffect(() => {
@@ -401,11 +388,11 @@ export const SimplePdfViewer: React.FC<SimplePdfViewerProps> = ({ fileUrl, tab, 
   const deleteHighlight = useCallback((annotationId: string) => {
     if (tab) {
       // Remove from database
-      const newAnnotations = tab.book.annotations.filter(a => a.id !== annotationId)
+      const newAnnotations = tab.book.annotations.filter((a: any) => a.id !== annotationId)
       tab.updateBook({ annotations: newAnnotations })
       
       // Remove from state
-      setHighlightAreas(prev => prev.filter(area => area.annotationId !== annotationId))
+      setHighlightAreas(prev => prev.filter(area => (area as any).annotationId !== annotationId))
     }
     setHighlightToDelete(null)
   }, [tab])

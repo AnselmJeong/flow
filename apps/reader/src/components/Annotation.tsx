@@ -111,6 +111,8 @@ const Annotation: React.FC<AnnotationProps> = ({ tab, annotation }) => {
   const { rendition } = useSnapshot(tab)
 
   useEffect(() => {
+    if (!annotation.cfi) return
+
     const h = rendition?.annotations[annotation.type](
       annotation.cfi,
       undefined,
@@ -126,12 +128,16 @@ const Annotation: React.FC<AnnotationProps> = ({ tab, annotation }) => {
 
     // `<rect>` should be reserved to response `click`
     g?.addEventListener('click', () => {
-      tab.setAnnotationRange(annotation.cfi)
+      if (annotation.cfi) {
+        tab.setAnnotationRange(annotation.cfi)
+      }
       setClickedAnnotation(true)
     })
 
     return () => {
-      rendition?.annotations.remove(annotation.cfi, annotation.type)
+      if (annotation.cfi) {
+        rendition?.annotations.remove(annotation.cfi, annotation.type)
+      }
     }
   }, [
     annotation.cfi,

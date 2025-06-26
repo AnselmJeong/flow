@@ -109,7 +109,7 @@ const Library: React.FC = () => {
 
   const [loading, setLoading] = useState<string | undefined>()
   const [readyToSync, setReadyToSync] = useState(false)
-  const { toasts, removeToast, showSuccess, showError, showWarning } = useToast()
+  const { toasts, removeToast, showSuccess, showError, showWarning, showInfo } = useToast()
 
   const { groups } = useReaderSnapshot()
 
@@ -458,7 +458,6 @@ const Library: React.FC = () => {
               {recentBooks.length >= 6 && (
                 <Button
                   variant="secondary"
-                  size="sm"
                   onClick={() => setSearchQuery('')}
                 >
                   {t('show_all')}

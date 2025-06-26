@@ -43,12 +43,11 @@ const config = {
     locales: ['en-US', 'zh-CN', 'ja-JP'],
     defaultLocale: 'en-US',
   },
-  ...(IS_DOCKER && {
-    output: 'standalone',
-    experimental: {
-      outputFileTracingRoot: path.join(__dirname, '../../'),
-    },
-  }),
+  // Always include standalone output for Docker builds
+  output: 'standalone',
+  experimental: {
+    outputFileTracingRoot: path.join(__dirname, '../../'),
+  },
 }
 
 const base = withPWA(withTM(withBundleAnalyzer(config)))

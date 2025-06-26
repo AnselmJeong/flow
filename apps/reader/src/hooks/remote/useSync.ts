@@ -60,7 +60,7 @@ export function useSync(tab: BookTab) {
 
   useEffect(() => {
     sync({
-      chatSessions: book.chatSessions,
+      chatSessions: book.chatSessions ? JSON.parse(JSON.stringify(book.chatSessions)) : [],
     })
   }, [book.chatSessions, sync])
 

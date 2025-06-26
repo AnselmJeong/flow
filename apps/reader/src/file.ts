@@ -57,19 +57,20 @@ export async function addBook(file: File) {
   if (isPdf) {
     const pdf = await fileToPdf(file)
     const metadata = await pdf.getMetadata()
+    const info = metadata.info as any
     
     const book: BookRecord = {
       id: uuidv4(),
-      name: file.name || `${metadata.info?.Title || 'Untitled'}.pdf`,
+      name: file.name || `${info?.Title || 'Untitled'}.pdf`,
       size: file.size,
       metadata: {
-        title: metadata.info?.Title || file.name.replace('.pdf', ''),
-        creator: metadata.info?.Author || 'Unknown',
-        description: metadata.info?.Subject || '',
+        title: info?.Title || file.name.replace('.pdf', ''),
+        creator: info?.Author || 'Unknown',
+        description: info?.Subject || '',
         language: 'en',
-        publisher: metadata.info?.Producer || '',
-        pubdate: metadata.info?.CreationDate || '',
-        modified_date: metadata.info?.ModDate || '',
+        publisher: info?.Producer || '',
+        pubdate: info?.CreationDate || '',
+        modified_date: info?.ModDate || '',
         identifier: '',
         rights: '',
         // Add PDF-specific metadata
@@ -79,6 +80,7 @@ export async function addBook(file: File) {
       createdAt: Date.now(),
       definitions: [],
       annotations: [],
+      chatSessions: [],
     }
     console.log('Adding PDF book to DB:', book)
     db?.books.add(book)
@@ -99,6 +101,7 @@ export async function addBook(file: File) {
       createdAt: Date.now(),
       definitions: [],
       annotations: [],
+      chatSessions: [],
     }
     db?.books.add(book)
     addFile(book.id, file, epub)

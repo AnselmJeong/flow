@@ -135,7 +135,7 @@ const AnnotationBlock: React.FC<AnnotationBlockProps> = ({ annotations }) => {
                   reader.focusedBookTab?.display(a.cfi)
                 }}
                 onDelete={() => {
-                  reader.focusedBookTab?.removeAnnotation(a.cfi)
+                  if (a.cfi) reader.focusedBookTab?.removeAnnotation(a.cfi)
                 }}
               >
                 {a.text}

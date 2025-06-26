@@ -329,7 +329,7 @@ export class BookTab extends BaseTab {
     })
   }
 
-  private _el?: HTMLDivElement
+  protected _el?: HTMLDivElement
   onRender?: () => void
   async render(el: HTMLDivElement) {
     if (el === this._el) return
@@ -537,12 +537,14 @@ export class PdfTab extends BookTab {
   // Override annotation methods for PDF page-based positioning
   putAnnotation(
     type: AnnotationType,
-    page: number,
+    cfiOrPage: string | number,
     color: AnnotationColor,
     text: string,
     notes?: string,
     extraData?: any,
   ) {
+    // For PDF, we expect a number (page), but we'll handle both for compatibility
+    const page = typeof cfiOrPage === 'number' ? cfiOrPage : parseInt(cfiOrPage) || 1
     const i = this.book.annotations.findIndex((a) => a.page === page && a.text === text)
     let annotation = this.book.annotations[i]
 
@@ -566,21 +568,22 @@ export class PdfTab extends BookTab {
       }
 
       this.updateBook({
-        annotations: [...snapshot(this.book.annotations), annotation],
+        annotations: [...snapshot(this.book.annotations), annotation as any],
       })
     } else {
+      const existingAnnotation = this.book.annotations[i]!
       annotation = {
-        ...this.book.annotations[i]!,
+        ...existingAnnotation,
         type,
         updatedAt: now,
         color,
         notes,
         text,
         ...extraData, // Spread extra data like highlightAreas
-      }
+      } as any
 
       const newAnnotations = [...this.book.annotations]
-      newAnnotations[i] = annotation
+      newAnnotations[i] = annotation as any
       this.updateBook({ annotations: newAnnotations })
     }
   }

@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  reader:
+    container_name: flow-reader-dev
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+      target: installer  # Stop at installer stage for development
+    restart: unless-stopped
+    ports:
+      - "7127:7127"
+    environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+      - PORT=7127
+      - HOSTNAME=0.0.0.0
+      - NEXT_PUBLIC_WEBSITE_URL=http://localhost:7127
+    volumes:
+      # Mount source code for hot reload (if needed)
+      - ./apps/reader/src:/app/apps/reader/src
+      - ./apps/reader/public:/app/apps/reader/public
+    command: pnpm -F reader dev 

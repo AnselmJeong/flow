@@ -97,9 +97,9 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
         if (selectedCfi.startsWith('page-')) {
           const pageNumber = parseInt(selectedCfi.replace('page-', ''))
           console.log('Navigating to PDF page:', pageNumber)
-          if (tab.goToPage) {
+          if ((tab as any).goToPage) {
             // PDF tab - use goToPage method
-            tab.goToPage(pageNumber)
+            (tab as any).goToPage(pageNumber)
             console.log('Called goToPage with:', pageNumber)
           } else {
             console.warn('tab.goToPage method not available')
@@ -229,9 +229,9 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
             name="apiKey"
             type="password"
             value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setApiKey(e.target.value)}
             placeholder="Gemini API 키를 입력하세요"
-            onKeyDown={(e) => {
+            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
               if (e.key === 'Enter') {
                 saveApiKey()
               }
@@ -307,7 +307,7 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
                         {hasContext ? (
                           <>
                             <div className="truncate font-medium text-sm text-gray-800">
-                              "{firstUserMessage.context.text.slice(0, 40)}{firstUserMessage.context.text.length > 40 ? '...' : ''}"
+                              "{firstUserMessage.context?.text?.slice(0, 40)}{(firstUserMessage.context?.text?.length || 0) > 40 ? '...' : ''}"
                             </div>
                             <div className="text-xs text-blue-600 mt-1">
                               근처 - AI 채팅
@@ -389,7 +389,7 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
                       if (firstUserMessage.context.page && tab && 'goToPage' in tab) {
                         console.log('Navigating to PDF page:', firstUserMessage.context.page)
                         try {
-                          tab.goToPage(firstUserMessage.context.page)
+                          (tab as any).goToPage(firstUserMessage.context.page)
                         } catch (error) {
                           console.error('Error navigating to PDF page:', error)
                         }
@@ -461,9 +461,9 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
                     mRef={inputRef}
                     as="textarea"
                     value={input}
-                    onChange={(e) => setInput(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setInput(e.target.value)}
                     placeholder="AI에게 질문하세요..."
-                    onKeyDown={(e) => {
+                    onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault()
                         sendMessage()

@@ -165,15 +165,13 @@ export const SimplePdfTextSelectionMenu: React.FC<SimplePdfTextSelectionMenuProp
               {/* Action buttons */}
               <div className="flex gap-1 ml-auto">
                 <Button
-                  variant="text"
-                  size="sm"
+                  variant="secondary"
                   onClick={() => setAnnotate(false)}
                 >
                   Cancel
                 </Button>
                 <Button
-                  variant="text"
-                  size="sm"
+                  variant="primary"
                   onClick={handleAnnotate}
                 >
                   Save
@@ -185,8 +183,7 @@ export const SimplePdfTextSelectionMenu: React.FC<SimplePdfTextSelectionMenuProp
           {existingAnnotation && !annotate && (
             <div className="border-t border-outline-variant pt-2 mt-2">
               <Button
-                variant="text"
-                size="sm"
+                variant="secondary"
                 onClick={handleRemoveAnnotation}
                 className="text-error"
               >
