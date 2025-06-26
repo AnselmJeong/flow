@@ -1,3 +1,4 @@
+import * as pdfjsLib from 'pdfjs-dist'
 import { v4 as uuidv4 } from 'uuid'
 
 import ePub, { Book } from '@flow/epubjs'
@@ -6,9 +7,17 @@ import { BookRecord, db } from './db'
 import { mapExtToMimes } from './mime'
 import { unpack } from './sync'
 
+// Set up PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`
+
 export async function fileToEpub(file: File) {
   const data = await file.arrayBuffer()
   return ePub(data)
+}
+
+export async function fileToPdf(file: File) {
+  const data = await file.arrayBuffer()
+  return pdfjsLib.getDocument({ data }).promise
 }
 
 export async function handleFiles(files: Iterable<File>) {
@@ -23,7 +32,7 @@ export async function handleFiles(files: Iterable<File>) {
       continue
     }
 
-    if (!mapExtToMimes['.epub'].includes(file.type)) {
+    if (!mapExtToMimes['.epub'].includes(file.type) && !mapExtToMimes['.pdf'].includes(file.type)) {
       console.error(`Unsupported file type: ${file.type}`)
       continue
     }
@@ -41,33 +50,94 @@ export async function handleFiles(files: Iterable<File>) {
 }
 
 export async function addBook(file: File) {
-  const epub = await fileToEpub(file)
-  const metadata = await epub.loaded.metadata
+  console.log('addBook called with file:', file.name, 'type:', file.type)
+  const isPdf = mapExtToMimes['.pdf'].includes(file.type)
+  console.log('isPdf check:', isPdf, 'expected types:', mapExtToMimes['.pdf'])
+  
+  if (isPdf) {
+    const pdf = await fileToPdf(file)
+    const metadata = await pdf.getMetadata()
+    
+    const book: BookRecord = {
+      id: uuidv4(),
+      name: file.name || `${metadata.info?.Title || 'Untitled'}.pdf`,
+      size: file.size,
+      metadata: {
+        title: metadata.info?.Title || file.name.replace('.pdf', ''),
+        creator: metadata.info?.Author || 'Unknown',
+        description: metadata.info?.Subject || '',
+        language: 'en',
+        publisher: metadata.info?.Producer || '',
+        pubdate: metadata.info?.CreationDate || '',
+        modified_date: metadata.info?.ModDate || '',
+        identifier: '',
+        rights: '',
+        // Add PDF-specific metadata
+        isPdf: true,
+        numPages: pdf.numPages,
+      },
+      createdAt: Date.now(),
+      definitions: [],
+      annotations: [],
+    }
+    console.log('Adding PDF book to DB:', book)
+    db?.books.add(book)
+    addFile(book.id, file, undefined, pdf)
+    return book
+  } else {
+    const epub = await fileToEpub(file)
+    const metadata = await epub.loaded.metadata
 
-  const book: BookRecord = {
-    id: uuidv4(),
-    name: file.name || `${metadata.title}.epub`,
-    size: file.size,
-    metadata,
-    createdAt: Date.now(),
-    definitions: [],
-    annotations: [],
+    const book: BookRecord = {
+      id: uuidv4(),
+      name: file.name || `${metadata.title}.epub`,
+      size: file.size,
+      metadata: {
+        ...metadata,
+        isPdf: false,
+      },
+      createdAt: Date.now(),
+      definitions: [],
+      annotations: [],
+    }
+    db?.books.add(book)
+    addFile(book.id, file, epub)
+    return book
   }
-  db?.books.add(book)
-  addFile(book.id, file, epub)
-  return book
 }
 
-export async function addFile(id: string, file: File, epub?: Book) {
+export async function addFile(id: string, file: File, epub?: Book, pdf?: pdfjsLib.PDFDocumentProxy) {
   db?.files.add({ id, file })
 
-  if (!epub) {
-    epub = await fileToEpub(file)
-  }
+  if (mapExtToMimes['.pdf'].includes(file.type)) {
+    if (!pdf) {
+      pdf = await fileToPdf(file)
+    }
+    // For PDFs, we'll generate a cover from the first page
+    try {
+      const page = await pdf.getPage(1)
+      const viewport = page.getViewport({ scale: 0.5 })
+      const canvas = document.createElement('canvas')
+      const context = canvas.getContext('2d')!
+      canvas.height = viewport.height
+      canvas.width = viewport.width
+      
+      await page.render({ canvasContext: context, viewport }).promise
+      const cover = canvas.toDataURL()
+      db?.covers.add({ id, cover })
+    } catch (error) {
+      console.warn('Failed to generate PDF cover:', error)
+      db?.covers.add({ id, cover: null })
+    }
+  } else {
+    if (!epub) {
+      epub = await fileToEpub(file)
+    }
 
-  const url = await epub.coverUrl()
-  const cover = url && (await toDataUrl(url))
-  db?.covers.add({ id, cover })
+    const url = await epub.coverUrl()
+    const cover = url && (await toDataUrl(url))
+    db?.covers.add({ id, cover })
+  }
 }
 
 export function readBlob(fn: (reader: FileReader) => void) {

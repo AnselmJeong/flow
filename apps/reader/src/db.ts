@@ -3,6 +3,24 @@ import Dexie, { Table } from 'dexie'
 
 import { PackagingMetadataObject } from '@flow/epubjs/types/packaging'
 
+// Extended metadata interface to support both EPUB and PDF
+export interface BookMetadata extends Partial<PackagingMetadataObject> {
+  title: string
+  creator?: string
+  description?: string
+  language?: string
+  publisher?: string
+  pubdate?: string
+  modified_date?: string
+  identifier?: string
+  rights?: string
+  // PDF-specific fields
+  isPdf?: boolean
+  numPages?: number
+  // Page-based location for PDFs instead of CFI
+  currentPage?: number
+}
+
 import { Annotation } from './annotation'
 import { fileToEpub } from './file'
 import { TypographyConfiguration } from './state'
@@ -14,7 +32,8 @@ export interface ChatMessage {
   timestamp: number
   context?: {
     text: string
-    cfi: string
+    cfi?: string
+    page?: number
     bookId: string
   }
 }
@@ -43,10 +62,11 @@ export interface BookRecord {
   id: string
   name: string
   size: number
-  metadata: PackagingMetadataObject
+  metadata: BookMetadata
   createdAt: number
   updatedAt?: number
   cfi?: string
+  currentPage?: number
   percentage?: number
   definitions: string[]
   annotations: Annotation[]
@@ -66,6 +86,13 @@ export class DB extends Dexie {
 
   constructor(name: string) {
     super(name)
+
+    this.version(7).stores({
+      books:
+        'id, name, size, metadata, createdAt, updatedAt, cfi, currentPage, percentage, definitions, annotations, chatSessions, configuration',
+      chatSessions:
+        'id, bookId, title, messages, createdAt, updatedAt',
+    })
 
     this.version(6).stores({
       books:

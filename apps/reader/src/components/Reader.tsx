@@ -29,7 +29,7 @@ import {
   useTranslation,
   useTypography,
 } from '../hooks'
-import { BookTab, reader, useReaderSnapshot } from '../models'
+import { BookTab, PdfTab, reader, useReaderSnapshot } from '../models'
 import { isTouchScreen } from '../platform'
 import { updateCustomStyle } from '../styles'
 
@@ -38,12 +38,13 @@ import {
   setClickedAnnotation,
   Annotations,
 } from './Annotation'
+import { PdfPane } from './PdfPane'
 import { Tab } from './Tab'
 import { TextSelectionMenu } from './TextSelectionMenu'
 import { DropZone, SplitView, useDndContext, useSplitViewItem } from './base'
 import * as pages from './pages'
 
-function handleKeyDown(tab?: BookTab) {
+function handleKeyDown(tab?: BookTab | PdfTab) {
   return (e: KeyboardEvent) => {
     try {
       switch (e.code) {
@@ -180,7 +181,9 @@ function ReaderGroup({ index }: ReaderGroupProps) {
       >
         {group.tabs.map((tab, i) => (
           <PaneContainer active={i === selectedIndex} key={tab.id}>
-            {tab instanceof BookTab ? (
+            {tab instanceof PdfTab ? (
+              <PdfPane tab={tab} onMouseDown={handleMouseDown} />
+            ) : tab instanceof BookTab ? (
               <BookPane tab={tab} onMouseDown={handleMouseDown} />
             ) : (
               <tab.Component />

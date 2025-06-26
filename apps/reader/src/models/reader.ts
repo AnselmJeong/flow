@@ -1,5 +1,6 @@
 import { debounce } from '@github/mini-throttle/decorators'
 import { IS_SERVER } from '@literal-ui/hooks'
+import * as pdfjsLib from 'pdfjs-dist'
 import React from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { proxy, ref, snapshot, subscribe, useSnapshot } from 'valtio'
@@ -10,7 +11,7 @@ import Section from '@flow/epubjs/types/section'
 
 import { AnnotationColor, AnnotationType } from '../annotation'
 import { BookRecord, db } from '../db'
-import { fileToEpub } from '../file'
+import { fileToEpub, fileToPdf } from '../file'
 import { defaultStyle } from '../styles'
 
 import { dfs, find, INode } from './tree'
@@ -436,6 +437,152 @@ export class BookTab extends BaseTab {
     // 1. update the unproxied instance, which is not reactive
     // 2. update unnecessary state (e.g. percentage) of all tabs with the same book
   }
+
+  get isPdf(): boolean {
+    return this.book.metadata.isPdf === true
+  }
+}
+
+export class PdfTab extends BookTab {
+  pdf?: pdfjsLib.PDFDocumentProxy
+  currentPage = 1
+  totalPages = 0
+  pdfFileUrl?: string
+
+  async render(el: HTMLDivElement) {
+    console.log('PdfTab render called', el)
+    if (el === this._el) return
+    this._el = ref(el)
+
+    const file = await db?.files.get(this.book.id)
+    if (!file) {
+      console.error('No file found for PDF book:', this.book.id)
+      return
+    }
+
+    console.log('Loading PDF file:', file.file.name)
+    
+    // Create object URL for PDF file
+    this.pdfFileUrl = URL.createObjectURL(file.file)
+    console.log('Created PDF URL:', this.pdfFileUrl)
+    
+    // Load PDF document
+    try {
+      this.pdf = ref(await fileToPdf(file.file))
+      this.totalPages = this.pdf.numPages
+      this.currentPage = this.book.currentPage || 1
+      console.log('PDF loaded successfully, pages:', this.totalPages)
+      
+      // Create and render PDF viewer
+      this.renderPdfViewer(el)
+    } catch (error) {
+      console.error('Error loading PDF:', error)
+    }
+  }
+
+  private renderPdfViewer(el: HTMLDivElement) {
+    console.log('Rendering PDF viewer in element:', el)
+    
+    // Import SimplePdfViewer with default layout for full functionality
+    import('../components/SimplePdfViewer').then(({ SimplePdfViewer }) => {
+      console.log('SimplePdfViewer component loaded')
+      const React = require('react')
+      const ReactDOM = require('react-dom/client')
+      
+      console.log('Creating React root for PDF viewer')
+      const root = ReactDOM.createRoot(el)
+      root.render(
+        React.createElement(SimplePdfViewer, {
+          fileUrl: this.pdfFileUrl!,
+          tab: this,
+          book: this.book,
+        })
+      )
+      console.log('PDF viewer rendered')
+    }).catch(error => {
+      console.error('Error loading SimplePdfViewer component:', error)
+      // Fallback to simple iframe
+      el.innerHTML = `
+        <iframe src="${this.pdfFileUrl}" style="width: 100%; height: 100%; border: none; background: white;"></iframe>
+      `
+    })
+  }
+
+  // Override navigation methods for PDF
+  prev() {
+    if (this.currentPage > 1) {
+      this.goToPage(this.currentPage - 1)
+    }
+  }
+
+  next() {
+    if (this.currentPage < this.totalPages) {
+      this.goToPage(this.currentPage + 1)
+    }
+  }
+
+  goToPage(page: number) {
+    this.currentPage = Math.max(1, Math.min(page, this.totalPages))
+    this.updateBook({ currentPage: this.currentPage })
+  }
+
+  // Override annotation methods for PDF page-based positioning
+  putAnnotation(
+    type: AnnotationType,
+    page: number,
+    color: AnnotationColor,
+    text: string,
+    notes?: string,
+    extraData?: any,
+  ) {
+    const i = this.book.annotations.findIndex((a) => a.page === page && a.text === text)
+    let annotation = this.book.annotations[i]
+
+    const now = Date.now()
+    if (!annotation) {
+      annotation = {
+        id: uuidv4(),
+        bookId: this.book.id,
+        page,
+        spine: {
+          index: page - 1,
+          title: `Page ${page}`,
+        },
+        createAt: now,
+        updatedAt: now,
+        type,
+        color,
+        notes,
+        text,
+        ...extraData, // Spread extra data like highlightAreas
+      }
+
+      this.updateBook({
+        annotations: [...snapshot(this.book.annotations), annotation],
+      })
+    } else {
+      annotation = {
+        ...this.book.annotations[i]!,
+        type,
+        updatedAt: now,
+        color,
+        notes,
+        text,
+        ...extraData, // Spread extra data like highlightAreas
+      }
+
+      const newAnnotations = [...this.book.annotations]
+      newAnnotations[i] = annotation
+      this.updateBook({ annotations: newAnnotations })
+    }
+  }
+
+  // Clean up object URL when tab is destroyed
+  destroy() {
+    if (this.pdfFileUrl) {
+      URL.revokeObjectURL(this.pdfFileUrl)
+    }
+  }
 }
 
 class PageTab extends BaseTab {
@@ -444,8 +591,8 @@ class PageTab extends BaseTab {
   }
 }
 
-type Tab = BookTab | PageTab
-type TabParam = ConstructorParameters<typeof BookTab | typeof PageTab>[0]
+type Tab = BookTab | PdfTab | PageTab
+type TabParam = ConstructorParameters<typeof BookTab | typeof PdfTab | typeof PageTab>[0]
 
 export class Group {
   id = uuidv4()
@@ -456,9 +603,15 @@ export class Group {
     public selectedIndex = tabs.length - 1,
   ) {
     this.tabs = tabs.map((t) => {
-      if (t instanceof BookTab || t instanceof PageTab) return t
+      if (t instanceof BookTab || t instanceof PdfTab || t instanceof PageTab) return t
       const isPage = typeof t === 'function'
-      return isPage ? new PageTab(t) : new BookTab(t)
+      if (isPage) return new PageTab(t)
+      
+      // Check if it's a PDF book and create appropriate tab type
+      const bookRecord = t as BookRecord
+      const isPdf = bookRecord.metadata.isPdf
+      console.log('Creating tab for book:', bookRecord.name, 'isPdf:', isPdf)
+      return isPdf ? new PdfTab(bookRecord) : new BookTab(bookRecord)
     })
   }
 
@@ -467,7 +620,7 @@ export class Group {
   }
 
   get bookTabs() {
-    return this.tabs.filter((t) => t instanceof BookTab) as BookTab[]
+    return this.tabs.filter((t) => t instanceof BookTab || t instanceof PdfTab) as (BookTab | PdfTab)[]
   }
 
   removeTab(index: number) {
@@ -477,7 +630,7 @@ export class Group {
   }
 
   addTab(param: TabParam | Tab) {
-    const isTab = param instanceof BookTab || param instanceof PageTab
+    const isTab = param instanceof BookTab || param instanceof PdfTab || param instanceof PageTab
     const isPage = typeof param === 'function'
 
     const id = isTab ? param.id : isPage ? param.displayName : param.id
@@ -488,7 +641,8 @@ export class Group {
       return this.tabs[index]
     }
 
-    const tab = isTab ? param : isPage ? new PageTab(param) : new BookTab(param)
+    const tab = isTab ? param : isPage ? new PageTab(param) : 
+      ((param as BookRecord).metadata.isPdf ? new PdfTab(param as BookRecord) : new BookTab(param as BookRecord))
 
     this.tabs.splice(++this.selectedIndex, 0, tab)
     return tab
@@ -517,7 +671,7 @@ export class Reader {
   }
 
   get focusedBookTab() {
-    return this.focusedTab instanceof BookTab ? this.focusedTab : undefined
+    return this.focusedTab instanceof BookTab || this.focusedTab instanceof PdfTab ? this.focusedTab : undefined
   }
 
   addTab(param: TabParam | Tab, groupIdx = this.focusedIndex) {
@@ -571,9 +725,14 @@ export class Reader {
 
   resize() {
     this.groups.forEach(({ bookTabs }) => {
-      bookTabs.forEach(({ rendition }) => {
+      bookTabs.forEach((tab) => {
         try {
-          rendition?.resize()
+          if (tab instanceof PdfTab) {
+            // PDF tabs don't need resize - the PDF viewer handles its own resizing
+            return
+          } else if (tab instanceof BookTab) {
+            tab.rendition?.resize()
+          }
         } catch (error) {
           console.error(error)
         }

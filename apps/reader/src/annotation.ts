@@ -25,7 +25,8 @@ export const colorMap = {
 export interface Annotation {
   id: string
   bookId: string
-  cfi: string
+  cfi?: string // For EPUB books
+  page?: number // For PDF books
   spine: {
     index: number
     title: string
