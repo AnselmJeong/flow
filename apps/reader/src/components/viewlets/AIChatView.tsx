@@ -34,7 +34,7 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
   const [showContext, setShowContext] = useState(!!selectedText)
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   // Get book info safely without useSnapshot
   const book = tab?.book || null
@@ -462,14 +462,19 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
                     onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setInput(e.target.value)}
                     placeholder="AI에게 질문하세요..."
                     onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+                      // Always stop propagation to prevent any key events from affecting page navigation
+                      e.stopPropagation()
+                      
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault()
                         sendMessage()
                       }
-                      // Prevent arrow keys from propagating to parent (page navigation)
-                      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-                        e.stopPropagation()
-                      }
+                    }}
+                    onKeyUp={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+                      e.stopPropagation()
+                    }}
+                    onKeyPress={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+                      e.stopPropagation()
                     }}
                     disabled={isLoading}
                     className="w-full min-h-[64px] max-h-[160px] resize-none rounded-lg border border-gray-300 p-4 text-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
