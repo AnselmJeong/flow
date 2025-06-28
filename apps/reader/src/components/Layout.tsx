@@ -57,7 +57,7 @@ export const Layout: React.FC = ({ children }) => {
     const isPdf = focusedTab && 'currentPage' in focusedTab // PdfTab has currentPage, BookTab doesn't
     setAction(mobile ? undefined : (isPdf ? undefined : 'toc'))
     setReady(true)
-  }, [mobile, setAction, r.focusedBookTab])
+  }, [mobile, setAction, r.focusedBookTab?.id])
 
   // Listen for AI chat requests from text selection
   useEffect(() => {
@@ -398,7 +398,7 @@ const ReaderWithAIChat: React.FC<ReaderWithAIChatProps> = ({
   return (
     <div className="relative flex-1 overflow-hidden">
       {/* AI Chat Toggle Button - Top Right */}
-      <div className="absolute top-4 right-4 z-20">
+      <div className="absolute top-4 right-8 z-20">
         <button
           onClick={() => setAiChatOpen(!aiChatOpen)}
           className={clsx(
