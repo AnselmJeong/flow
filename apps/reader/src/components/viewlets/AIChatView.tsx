@@ -454,12 +454,10 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
           {/* Input Area */}
           <div className="border-t bg-white p-6 flex-shrink-0">
             <div className="max-w-4xl mx-auto">
-              <div className="flex gap-3 items-end">
+              <div className="flex gap-3 items-start">
                 <div className="flex-1">
-                  <TextField
-                    name="chatInput"
-                    mRef={inputRef}
-                    as="textarea"
+                  <textarea
+                    ref={inputRef}
                     value={input}
                     onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setInput(e.target.value)}
                     placeholder="AI에게 질문하세요..."
@@ -468,18 +466,22 @@ export const AIChatView: React.FC<AIChatViewProps> = ({
                         e.preventDefault()
                         sendMessage()
                       }
+                      // Prevent arrow keys from propagating to parent (page navigation)
+                      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                        e.stopPropagation()
+                      }
                     }}
                     disabled={isLoading}
-                    className="min-h-[48px] max-h-[120px] resize-none rounded-lg border border-gray-300 p-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                    rows={1}
+                    className="w-full min-h-[64px] max-h-[160px] resize-none rounded-lg border border-gray-300 p-4 text-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                    rows={2}
                   />
                 </div>
                 <Button
                   onClick={sendMessage}
                   disabled={!input.trim() || isLoading}
-                  className="h-12 w-12 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 flex items-center justify-center"
+                  className="h-[64px] w-16 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 flex items-center justify-center"
                 >
-                  <MdSend size={20} className="text-white" />
+                  <MdSend size={24} className="text-white" />
                 </Button>
               </div>
             </div>

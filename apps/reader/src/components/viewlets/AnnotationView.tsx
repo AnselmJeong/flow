@@ -14,33 +14,12 @@ import { PaneViewProps, PaneView, Pane } from '../base'
 export const AnnotationView: React.FC<PaneViewProps> = (props) => {
   return (
     <PaneView {...props}>
-      <DefinitionPane />
       <AnnotationPane />
     </PaneView>
   )
 }
 
-const DefinitionPane: React.FC = () => {
-  const { focusedBookTab } = useReaderSnapshot()
-  const t = useTranslation('annotation')
 
-  return (
-    <Pane headline={t('definitions')} preferredSize={120}>
-      {focusedBookTab?.book.definitions.map((d) => {
-        return (
-          <Row
-            key={d}
-            onDelete={() => {
-              reader.focusedBookTab?.undefine(d)
-            }}
-          >
-            {d}
-          </Row>
-        )
-      })}
-    </Pane>
-  )
-}
 
 const AnnotationPane: React.FC = () => {
   const { focusedBookTab } = useReaderSnapshot()

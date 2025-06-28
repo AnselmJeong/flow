@@ -398,7 +398,7 @@ const ReaderWithAIChat: React.FC<ReaderWithAIChatProps> = ({
   return (
     <div className="relative flex-1 overflow-hidden">
       {/* AI Chat Toggle Button - Top Right */}
-      <div className="absolute top-4 right-8 z-20">
+      <div className="absolute top-4 right-20 z-20">
         <button
           onClick={() => setAiChatOpen(!aiChatOpen)}
           className={clsx(
